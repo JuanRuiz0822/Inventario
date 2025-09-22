@@ -127,3 +127,19 @@ def eliminar_articulo(id: int):
 # ======================
 frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
 app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+
+sed -i "/from fastapi import FastAPI/i from fastapi import BackgroundTasks\nimport sync_gs" backend/app.py
+
+cat >> backend/app.py << 'EOF'
+
+# Endpoints para sincronización con Google Sheets
+@app.post("/api/sync/pull")
+def api_sync_pull(background_tasks: BackgroundTasks):
+    background_tasks.add_task(sync_gs.pull_sheet_to_sqlite)
+    return {"started": True, "action": "pull"}
+
+@app.post("/api/sync/push")
+def api_sync_push(background_tasks: BackgroundTasks):
+    background_tasks.add_task(sync_gs.push_sqlite_to_sheet)
+    return {"started": True, "action": "push"}
+EOF

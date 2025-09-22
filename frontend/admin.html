@@ -1,27 +1,29 @@
+sed -i '/<button onclick="search()">Buscar<\/button>/a \
+    <button onclick="syncPull()" style="margin-left:24px;">Sync ← Drive</button>\
+    <button onclick="syncPush()">Sync → Drive</button>\
+    <span id="syncStatus" style="margin-left:12px;color:#333"></span>' frontend/admin.html
 
-<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Inventario - Admin</title></head>
-<body>
-  <h1>Inventario - Prototipo Admin</h1>
-  <div>
-    <button onclick="load()">Cargar artículos</button>
-    <input id="q" placeholder="buscar..." />
-    <button onclick="search()">Buscar</button>
-  </div>
-  <pre id="list" style="white-space:pre-wrap; border:1px solid #ccc; padding:10px; height:400px; overflow:auto;"></pre>
+cat >> frontend/admin.html << 'EOF'
 <script>
-async function load(){ 
-  const res = await fetch('/api/articulos');
-  const data = await res.json();
-  document.getElementById('list').innerText = JSON.stringify(data.slice(0,200), null, 2);
+async function syncPull(){
+  document.getElementById('syncStatus').innerText = 'Iniciando pull...';
+  try {
+    const r = await fetch('/api/sync/pull', { method: 'POST' });
+    document.getElementById('syncStatus').innerText = 'Pull en proceso... recarga luego';
+    setTimeout(load, 3000);
+  } catch (err) {
+    document.getElementById('syncStatus').innerText = 'ERROR: ' + err.toString();
+  }
 }
-async function search(){
-  const q = document.getElementById('q').value;
-  const res = await fetch('/api/articulos?q=' + encodeURIComponent(q));
-  const data = await res.json();
-  document.getElementById('list').innerText = JSON.stringify(data.slice(0,200), null, 2);
+
+async function syncPush(){
+  document.getElementById('syncStatus').innerText = 'Iniciando push...';
+  try {
+    const r = await fetch('/api/sync/push', { method: 'POST' });
+    document.getElementById('syncStatus').innerText = 'Push enviado';
+  } catch (err) {
+    document.getElementById('syncStatus').innerText = 'ERROR: ' + err.toString();
+  }
 }
 </script>
-</body>
-</html>
+EOF
