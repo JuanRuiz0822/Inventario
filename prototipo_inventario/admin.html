@@ -1,0 +1,27 @@
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Inventario - Admin</title></head>
+<body>
+  <h1>Inventario - Prototipo Admin</h1>
+  <div>
+    <button onclick="load()">Cargar artículos</button>
+    <input id="q" placeholder="buscar..." />
+    <button onclick="search()">Buscar</button>
+  </div>
+  <pre id="list" style="white-space:pre-wrap; border:1px solid #ccc; padding:10px; height:400px; overflow:auto;"></pre>
+<script>
+async function load(){ 
+  const res = await fetch('/api/articulos');
+  const data = await res.json();
+  document.getElementById('list').innerText = JSON.stringify(data.slice(0,200), null, 2);
+}
+async function search(){
+  const q = document.getElementById('q').value;
+  const res = await fetch('/api/articulos?q=' + encodeURIComponent(q));
+  const data = await res.json();
+  document.getElementById('list').innerText = JSON.stringify(data.slice(0,200), null, 2);
+}
+</script>
+</body>
+</html>
