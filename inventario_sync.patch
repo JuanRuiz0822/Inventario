@@ -1,0 +1,222 @@
+From e5a1f7a2f89cbb0e5f99a2d6cada44b3f6b098ef Mon Sep 17 00:00:00 2001
+From: Tu Nombre <tu.email@ejemplo.com>
+Date: Tue, 23 Sep 2025 00:00:00 +0000
+Subject: [PATCH] Añadir sincronización con Google Sheets, endpoints sync, run script
+
+---
+ backend/app.py                |  15 +++++++++++++--
+ backend/requirements.txt     |   4 ++--
+ backend/sync_gs.py           | 125 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ backend/run_project.ps1       |  25 +++++++++++++++++++++++
+ frontend/admin.html           |  18 ++++++++++++++----
+ 5 files changed, 174 insertions(+), 13 deletions(-)
+ create mode 100644 backend/sync_gs.py
+ create mode 100644 backend/run_project.ps1
+
+diff --git a/backend/app.py b/backend/app.py
+index abcdef1..abcdef2 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -1,6 +1,9 @@
+ from fastapi import FastAPI, HTTPException
++from fastapi import BackgroundTasks
+ import sqlite3
+ import os
+ from fastapi.middleware.cors import CORSMiddleware
++import sync_gs
+ from fastapi.staticfiles import StaticFiles
+ from typing import Optional
+ 
+@@ -40,6 +43,15 @@ app.add_middleware(
+     allow_headers=["*"],
+ )
++
++# Endpoints para sincronización con Google Sheets
++@app.post("/api/sync/pull")
++def api_sync_pull(background_tasks: BackgroundTasks):
++    background_tasks.add_task(sync_gs.pull_sheet_to_sqlite)
++    return {"started": True, "action": "pull"}
++
++@app.post("/api/sync/push")
++def api_sync_push(background_tasks: BackgroundTasks):
++    background_tasks.add_task(sync_gs.push_sqlite_to_sheet)
++    return {"started": True, "action": "push"}
+ 
+ # Servir frontend estático
+ frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
+ diff --git a/backend/requirements.txt b/backend/requirements.txt
+index abcdef3..abcdef4 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -1,2 +1,4 @@
+ fastapi
+ uvicorn[standard]
++pandas
++gspread
+ diff --git a/backend/sync_gs.py b/backend/sync_gs.py
+ new file mode 100644 backend/sync_gs.py
+--- /dev/null
++++ b/backend/sync_gs.py
+@@ -0,0 +1,125 @@
++import os
++import sqlite3
++import pandas as pd
++from pathlib import Path
++from datetime import datetime
++import gspread
++from google.oauth2.service_account import Credentials
++
++BASE_DIR = Path(__file__).resolve().parent
++DB_PATH = BASE_DIR / "inventario.db"
++CREDENTIALS_JSON = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", str(BASE_DIR / "credentials.json"))
++SHEET_ID = os.environ.get("GS_SHEET_ID", None)
++SHEET_NAME = os.environ.get("GS_SHEET_NAME", "Sheet1")
++
++SCOPES = [
++    "https://www.googleapis.com/auth/spreadsheets",
++    "https://www.googleapis.com/auth/drive"
++]
++
++def get_gspread_client():
++    creds = Credentials.from_service_account_file(CREDENTIALS_JSON, scopes=SCOPES)
++    client = gspread.authorize(creds)
++    return client
++
++def normalize_cols(cols):
++    return [str(c).strip().replace(" ", "_").lower() for c in cols]
++
++def pull_sheet_to_sqlite(sheet_id: str = None, sheet_name: str = None):
++    sheet_id = sheet_id or SHEET_ID
++    sheet_name = sheet_name or SHEET_NAME
++    if not sheet_id:
++        raise ValueError("SHEET_ID no configurado. Define GS_SHEET_ID env var.")
++    client = get_gspread_client()
++    sh = client.open_by_key(sheet_id)
++    try:
++        ws = sh.worksheet(sheet_name)
++    except Exception:
++        ws = sh.sheet1
++
++    records = ws.get_all_records()
++    if len(records) == 0:
++        df = pd.DataFrame()
++    else:
++        df = pd.DataFrame.from_records(records)
++
++    df.columns = normalize_cols(df.columns)
++
++    if "last_updated" not in df.columns:
++        df["last_updated"] = datetime.utcnow().isoformat(timespec='seconds')
++
++    conn = sqlite3.connect(DB_PATH)
++    df.to_sql("articulos", conn, if_exists="replace", index=False)
++    conn.close()
++    return {"ok": True, "rows": len(df)}
++
++def push_sqlite_to_sheet(sheet_id: str = None, sheet_name: str = None):
++    sheet_id = sheet_id or SHEET_ID
++    sheet_name = sheet_name or SHEET_NAME
++    if not sheet_id:
++        raise ValueError("SHEET_ID no configurado. Define GS_SHEET_ID env var.")
++    conn = sqlite3.connect(DB_PATH)
++    df = pd.read_sql_query("SELECT * FROM articulos", conn)
++    conn.close()
++
++    client = get_gspread_client()
++    sh = client.open_by_key(sheet_id)
++    try:
++        worksheet = sh.worksheet(sheet_name)
++        worksheet.clear()
++    except Exception:
++        worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="20")
++
++    headers = list(df.columns)
++    values = [headers] + df.fillna("").astype(str).values.tolist()
++    worksheet.update(values)
++    return {"ok": True, "rows": len(df)}
++
++if __name__ == "__main__":
++    import argparse
++    parser = argparse.ArgumentParser()
++    parser.add_argument("action", choices=["pull","push"])
++    parser.add_argument("--sheet-id", default=None)
++    parser.add_argument("--sheet-name", default=None)
++    args = parser.parse_args()
++    if args.action == "pull":
++        print(pull_sheet_to_sqlite(sheet_id=args.sheet_id, sheet_name=args.sheet_name))
++    else:
++        print(push_sqlite_to_sheet(sheet_id=args.sheet_id, sheet_name=args.sheet_name))
+ diff --git a/backend/run_project.ps1 b/backend/run_project.ps1
+ new file mode 100644 backend/run_project.ps1
+--- /dev/null
++++ b/backend/run_project.ps1
+@@ -0,0 +1,25 @@
++cd (Split-Path -Parent $MyInvocation.MyCommand.Definition)
++if (-Not (Test-Path ".venv")) {
++    python -m venv .venv
++}
++. .\.venv\Scripts\Activate.ps1
++pip install --upgrade pip
++pip install -r requirements.txt
++uvicorn app:app --reload --host 0.0.0.0 --port 8000
+ diff --git a/frontend/admin.html b/frontend/admin.html
+ index abcdef5..abcdef6 100644
+--- a/frontend/admin.html
++++ b/frontend/admin.html
+@@ -1,18 +1,22 @@
+ <html>
+ <head><meta charset="utf-8"><title>Inventario - Admin</title></head>
+ <body style="font-family: Arial, sans-serif; padding:18px">
+   <h1>Inventario - Prototipo Admin</h1>
+   <div style="margin-bottom:12px;">
+-    <button onclick="load()">Cargar artículos</button>
+-    <input id="q" placeholder="buscar..." />
+-    <button onclick="search()">Buscar</button>
++    <button onclick="load()">Cargar artículos</button>
++    <input id="q" placeholder="buscar..." />
++    <button onclick="search()">Buscar</button>
++    <button onclick="syncPull()" style="margin-left:24px;">Sync ← Drive</button>
++    <button onclick="syncPush()">Sync → Drive</button>
++    <span id="syncStatus" style="margin-left:12px;color:#333"></span>
+   </div>
+   <div id="list" style="white-space:pre-wrap; border:1px solid #ccc; padding:10px; height:400px; overflow:auto;"></div>
+ 
+ <script>
+ async function fetchJson(path) {
+@@ -31,6 +35,17 @@ <script>
+ async function search(){
+   const q = document.getElementById('q').value.trim();
+   if (!q) { load(); return; }
++  try {
++    const data = await fetchJson('/api/articulos?q=' + encodeURIComponent(q));
++    document.getElementById('list').innerText = JSON.stringify(data.slice(0,200), null, 2);
++  } catch (err) {
++    document.getElementById('list').innerText = 'ERROR: ' + err.toString();
++  }
++}
++
++async function syncPull(){
++  document.getElementById('syncStatus').innerText = 'Iniciando pull...';
++  try {
++    const r = await fetch('/api/sync/pull', { method: 'POST' });
++    document.getElementById('syncStatus').innerText = 'Pull en proceso... recarga luego';
++    setTimeout(load, 3000);
++  } catch (err) {
++    document.getElementById('syncStatus').innerText = 'ERROR: ' + err.toString();
++  }
++}
++
++async function syncPush(){
++  document.getElementById('syncStatus').innerText = 'Iniciando push...';
++  try {
++    const r = await fetch('/api/sync/push', { method: 'POST' });
++    document.getElementById('syncStatus').innerText = 'Push enviado';
++  } catch (err) {
++    document.getElementById('syncStatus').innerText = 'ERROR: ' + err.toString();
++  }
++}
+ </script>
+ </body>
+ </html>
+-- 
+2.39.1
