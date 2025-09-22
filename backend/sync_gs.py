@@ -1,4 +1,3 @@
-cat > backend/sync_gs.py << 'EOF'
 import os
 import sqlite3
 import pandas as pd
@@ -40,8 +39,8 @@ def pull_sheet_to_sqlite(sheet_id: str = None, sheet_name: str = None):
 
     records = ws.get_all_records()
     df = pd.DataFrame.from_records(records) if records else pd.DataFrame()
-    df.columns = normalize_cols(df.columns)
-
+    if not df.empty:
+        df.columns = normalize_cols(df.columns)
     if "last_updated" not in df.columns:
         df["last_updated"] = datetime.utcnow().isoformat(timespec='seconds')
 
@@ -83,4 +82,3 @@ if __name__ == "__main__":
         print(pull_sheet_to_sqlite(sheet_id=args.sheet_id, sheet_name=args.sheet_name))
     else:
         print(push_sqlite_to_sheet(sheet_id=args.sheet_id, sheet_name=args.sheet_name))
-EOF

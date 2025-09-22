@@ -1,6 +1,4 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pandas
-openpyxl
-
-echo -e "pandas\ngspread" >> backend/requirements.txt
+gspread
