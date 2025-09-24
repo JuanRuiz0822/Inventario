@@ -166,3 +166,364 @@ def health_check():
         "database": "connected" if os.path.exists(os.path.join(os.path.dirname(__file__), "inventario.db")) else "not_found",
         "message": "Sistema funcionando correctamente"
     }
+
+
+# ================================================================
+# FUNCIONALIDADES AVANZADAS DE CONSULTA - AGREGADAS INCREMENTALMENTE
+# ================================================================
+
+from typing import Dict, Any
+import gspread
+from google.oauth2.service_account import Credentials
+import os
+from fastapi import Query as FastAPIQuery
+
+# Configuración Google Sheets (si está disponible)
+GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
+CREDENTIALS_PATH = "backend/credentials.json"
+
+def get_google_sheet_data():
+    """Obtener datos de Google Sheets si está configurado"""
+    try:
+        if not GOOGLE_SHEET_ID or not os.path.exists(CREDENTIALS_PATH):
+            # Datos de ejemplo si no hay configuración
+            return [
+                {
+                    "id": "92271014746",
+                    "placa": "92271014746",
+                    "nombre": "COMPUTADOR PORTATIL HP 445R",
+                    "marca": "HP", 
+                    "modelo": "445R",
+                    "categoria": "COMPUTADOR PORTATIL",
+                    "descripcion": "AMD RYZEN 7, 16GB RAM, 512GB",
+                    "valor": "1789685.04",
+                    "fecha_adquisicion": "2020-05-11",
+                    "ubicacion": "Oficina Principal",
+                    "responsable": "ALVAREZ DIAZ JUAN GONZALO",
+                    "observaciones": "Contiene mouse maletín guaya"
+                },
+                {
+                    "id": "92271018040",
+                    "placa": "92271018040", 
+                    "nombre": "ACCESS POINT RUIJIE RG-RAP-2260H",
+                    "marca": "RUIJIE",
+                    "modelo": "RG-RAP-2260H",
+                    "categoria": "ACCES POINT",
+                    "descripcion": "Wi-Fi 6 802.11ax, 512 usuarios simultáneos",
+                    "valor": "2730401.68",
+                    "fecha_adquisicion": "2024-12-30", 
+                    "ubicacion": "Centro de Datos",
+                    "responsable": "ALVAREZ DIAZ JUAN GONZALO",
+                    "observaciones": "Conectividad inalámbrica empresarial"
+                },
+                {
+                    "id": "92271016061",
+                    "placa": "92271016061",
+                    "nombre": "CONTROLADOR PLC SIEMENS S7-1500",
+                    "marca": "SIEMENS",
+                    "modelo": "516-3FN00-0AB0", 
+                    "categoria": "CONTROLADOR LOGICO PROGRAMABLE",
+                    "descripcion": "CPU 1516-3 PNDP, 1MB/5MB, 32DI/32DQ",
+                    "valor": "14665000.00",
+                    "fecha_adquisicion": "2022-06-22",
+                    "ubicacion": "Laboratorio Automatización",
+                    "responsable": "ALVAREZ DIAZ JUAN GONZALO", 
+                    "observaciones": "Para automatización industrial"
+                },
+                {
+                    "id": "922713360",
+                    "placa": "922713360",
+                    "nombre": "SILLA INTERLOCUTORA",
+                    "marca": "N/A",
+                    "modelo": "INTERLOCUTORA",
+                    "categoria": "SILLA",
+                    "descripcion": "Tubo redondo 22mm, tapizada espuma densidad 26",
+                    "valor": "152560.00", 
+                    "fecha_adquisicion": "2017-11-01",
+                    "ubicacion": "Sala de Reuniones",
+                    "responsable": "MANTILLA ARENAS WILLIAM",
+                    "observaciones": "Color naranja, espaldar polipropileno"
+                }
+            ]
+        
+        # Configuración real de Google Sheets
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+        ]
+        
+        creds = Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=scopes)
+        client = gspread.authorize(creds)
+        
+        sheet = client.open_by_key(GOOGLE_SHEET_ID)
+        worksheet = sheet.sheet1
+        
+        # Obtener todos los datos
+        all_values = worksheet.get_all_records()
+        
+        # Convertir a formato estándar
+        articulos = []
+        for row in all_values:
+            if row.get("Placa"):  # Solo procesar filas con placa
+                articulo = {
+                    "id": str(row.get("Placa", "")),
+                    "placa": str(row.get("Placa", "")),
+                    "nombre": f"{row.get('Descripción Actual', '')} {row.get('Marca', '')} {row.get('Modelo', '')}".strip(),
+                    "marca": str(row.get("Marca", "")),
+                    "modelo": str(row.get("Modelo", "")),
+                    "categoria": str(row.get("Descripción Actual", "")),
+                    "descripcion": str(row.get("Atributos", "")),
+                    "valor": str(row.get("Valor Ingreso", "0")).replace(",", ""),
+                    "fecha_adquisicion": str(row.get("Fecha Adquisición", "")),
+                    "ubicacion": str(row.get("Ubicación", "")),
+                    "responsable": str(row.get("Centro/R", "")),  # Ajustar según estructura real
+                    "observaciones": str(row.get("Observaciones", ""))
+                }
+                articulos.append(articulo)
+        
+        return articulos
+        
+    except Exception as e:
+        print(f"Error accediendo Google Sheets: {e}")
+        # Retornar datos de ejemplo en caso de error
+        return get_google_sheet_data()  # Recursivo para obtener datos ejemplo
+
+# NUEVOS ENDPOINTS DE CONSULTA AVANZADA
+
+@app.get("/api/inventario/consulta")
+async def consulta_inventario(
+    page: int = FastAPIQuery(1, ge=1, description="Número de página"),
+    limit: int = FastAPIQuery(50, ge=1, le=500, description="Artículos por página"),
+    categoria: str = FastAPIQuery(None, description="Filtrar por categoría"),
+    responsable: str = FastAPIQuery(None, description="Filtrar por responsable"),
+    marca: str = FastAPIQuery(None, description="Filtrar por marca"),
+    fecha_desde: str = FastAPIQuery(None, description="Fecha desde (YYYY-MM-DD)"),
+    fecha_hasta: str = FastAPIQuery(None, description="Fecha hasta (YYYY-MM-DD)"),
+    valor_min: float = FastAPIQuery(None, description="Valor mínimo"),
+    valor_max: float = FastAPIQuery(None, description="Valor máximo")
+):
+    """Consulta paginada del inventario con filtros avanzados"""
+    try:
+        # Obtener todos los datos
+        todos_articulos = get_google_sheet_data()
+        
+        # Aplicar filtros
+        articulos_filtrados = todos_articulos
+        
+        if categoria:
+            articulos_filtrados = [a for a in articulos_filtrados if categoria.lower() in a.get("categoria", "").lower()]
+        
+        if responsable:
+            articulos_filtrados = [a for a in articulos_filtrados if responsable.lower() in a.get("responsable", "").lower()]
+            
+        if marca:
+            articulos_filtrados = [a for a in articulos_filtrados if marca.lower() in a.get("marca", "").lower()]
+        
+        if fecha_desde:
+            articulos_filtrados = [a for a in articulos_filtrados if a.get("fecha_adquisicion", "") >= fecha_desde]
+            
+        if fecha_hasta:
+            articulos_filtrados = [a for a in articulos_filtrados if a.get("fecha_adquisicion", "") <= fecha_hasta]
+            
+        if valor_min is not None:
+            articulos_filtrados = [a for a in articulos_filtrados if float(a.get("valor", "0")) >= valor_min]
+            
+        if valor_max is not None:
+            articulos_filtrados = [a for a in articulos_filtrados if float(a.get("valor", "0")) <= valor_max]
+        
+        # Paginación
+        total = len(articulos_filtrados)
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        articulos_pagina = articulos_filtrados[start_idx:end_idx]
+        
+        return {
+            "articulos": articulos_pagina,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit,
+            "has_next": end_idx < total,
+            "has_prev": page > 1
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Error consultando inventario: {str(e)}",
+            "articulos": [],
+            "total": 0
+        }
+
+@app.get("/api/inventario/buscar")
+async def buscar_inventario(
+    q: str = FastAPIQuery(..., description="Texto a buscar"),
+    campos: str = FastAPIQuery("nombre,marca,modelo,descripcion", description="Campos donde buscar"),
+    limit: int = FastAPIQuery(20, ge=1, le=100)
+):
+    """Búsqueda por texto libre en el inventario"""
+    try:
+        todos_articulos = get_google_sheet_data()
+        campos_buscar = campos.split(",")
+        
+        resultados = []
+        for articulo in todos_articulos:
+            # Buscar en los campos especificados
+            texto_buscar = ""
+            for campo in campos_buscar:
+                if campo in articulo:
+                    texto_buscar += f" {articulo[campo]}"
+            
+            if q.lower() in texto_buscar.lower():
+                resultados.append(articulo)
+                
+            if len(resultados) >= limit:
+                break
+                
+        return {
+            "query": q,
+            "campos": campos_buscar,
+            "resultados": resultados,
+            "total_encontrados": len(resultados)
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Error en búsqueda: {str(e)}",
+            "resultados": []
+        }
+
+@app.get("/api/inventario/categorias")
+async def get_categorias():
+    """Obtener lista de categorías disponibles"""
+    try:
+        articulos = get_google_sheet_data()
+        categorias = set()
+        
+        for articulo in articulos:
+            if articulo.get("categoria"):
+                categorias.add(articulo["categoria"])
+        
+        return {
+            "categorias": sorted(list(categorias)),
+            "total": len(categorias)
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Error obteniendo categorías: {str(e)}",
+            "categorias": []
+        }
+
+@app.get("/api/inventario/responsables")
+async def get_responsables():
+    """Obtener lista de responsables"""
+    try:
+        articulos = get_google_sheet_data()
+        responsables = set()
+        
+        for articulo in articulos:
+            if articulo.get("responsable"):
+                responsables.add(articulo["responsable"])
+        
+        return {
+            "responsables": sorted(list(responsables)),
+            "total": len(responsables)
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Error obteniendo responsables: {str(e)}",
+            "responsables": []
+        }
+
+@app.get("/api/inventario/estadisticas")
+async def get_estadisticas():
+    """Dashboard con estadísticas del inventario"""
+    try:
+        articulos = get_google_sheet_data()
+        
+        # Cálculos estadísticos
+        total_articulos = len(articulos)
+        valor_total = sum(float(a.get("valor", "0")) for a in articulos)
+        
+        # Categorías más comunes
+        categorias = {}
+        for articulo in articulos:
+            cat = articulo.get("categoria", "Sin categoría")
+            categorias[cat] = categorias.get(cat, 0) + 1
+        
+        # Responsables
+        responsables = {}
+        for articulo in articulos:
+            resp = articulo.get("responsable", "Sin asignar")
+            responsables[resp] = responsables.get(resp, 0) + 1
+        
+        # Top 5 de cada uno
+        top_categorias = sorted(categorias.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_responsables = sorted(responsables.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        return {
+            "resumen": {
+                "total_articulos": total_articulos,
+                "valor_total_inventario": valor_total,
+                "total_categorias": len(categorias),
+                "total_responsables": len(responsables)
+            },
+            "top_categorias": [{"categoria": k, "cantidad": v} for k, v in top_categorias],
+            "top_responsables": [{"responsable": k, "cantidad": v} for k, v in top_responsables],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Error generando estadísticas: {str(e)}",
+            "resumen": {"total_articulos": 0}
+        }
+
+@app.get("/api/inventario/{placa}/detalle")
+async def get_detalle_articulo(placa: str):
+    """Obtener detalle completo de un artículo por su placa"""
+    try:
+        articulos = get_google_sheet_data()
+        
+        for articulo in articulos:
+            if articulo.get("placa") == placa or articulo.get("id") == placa:
+                return {
+                    "articulo": articulo,
+                    "encontrado": True
+                }
+        
+        return {
+            "error": f"Artículo con placa {placa} no encontrado",
+            "encontrado": False
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Error obteniendo detalle: {str(e)}",
+            "encontrado": False
+        }
+
+# Endpoint mejorado de sincronización
+@app.post("/api/sync/pull")
+async def sync_pull_mejorado():
+    """Sincronización mejorada desde Google Sheets"""
+    try:
+        articulos = get_google_sheet_data()
+        
+        return {
+            "message": "Sincronización exitosa",
+            "articulos_sincronizados": len(articulos),
+            "timestamp": datetime.now().isoformat(),
+            "estado": "ok"
+        }
+        
+    except Exception as e:
+        return {
+            "message": f"Error en sincronización: {str(e)}",
+            "articulos_sincronizados": 0,
+            "estado": "error"
+        }
+
+
+

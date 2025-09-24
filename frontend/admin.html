@@ -3,400 +3,585 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Inventario - Panel Administrativo</title>
+    <title>Sistema de Inventario - Consulta Avanzada</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-            padding: 40px;
-            max-width: 1200px;
-            width: 95%;
-            margin: 20px;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 20px;
-        }
-        
-        .header h1 {
-            color: #333;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            color: #666;
-            font-size: 1.2em;
-        }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-            margin-bottom: 40px;
-        }
-        
-        .card {
-            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
-            border-radius: 15px;
-            padding: 30px;
-            text-align: center;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: 2px solid transparent;
-        }
-        
-        .card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
-            border-color: #667eea;
-        }
-        
-        .card h3 {
-            color: #333;
-            font-size: 1.5em;
-            margin-bottom: 15px;
-        }
-        
-        .card p {
-            color: #666;
-            margin-bottom: 25px;
-            line-height: 1.6;
-        }
-        
-        .btn {
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 50px;
-            cursor: pointer;
-            font-size: 1.1em;
-            text-decoration: none;
-            display: inline-block;
-            transition: all 0.3s ease;
-            font-weight: bold;
-        }
-        
-        .btn:hover {
-            background: linear-gradient(45deg, #5a6fd8, #6a4c93);
-            transform: scale(1.05);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        }
-        
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin: 40px 0;
-        }
-        
-        .status-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            border-left: 5px solid #667eea;
-        }
-        
-        .status-card h4 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        
-        .status-card .number {
-            font-size: 2em;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .endpoints {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 30px;
-            margin: 30px 0;
-        }
-        
-        .endpoints h3 {
-            color: #333;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .endpoint-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }
-        
-        .endpoint {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #28a745;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .endpoint.post { border-left-color: #007bff; }
-        .endpoint.put { border-left-color: #ffc107; }
-        .endpoint.delete { border-left-color: #dc3545; }
-        
-        .method {
-            font-weight: bold;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.9em;
-        }
-        
-        .method.get { background: #d4edda; color: #155724; }
-        .method.post { background: #cce5ff; color: #004085; }
-        .method.put { background: #fff3cd; color: #856404; }
-        .method.delete { background: #f8d7da; color: #721c24; }
-        
-        .footer {
-            text-align: center;
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 2px solid #dee2e6;
-            color: #666;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 20px 0;
-        }
-        
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 20px;
-                margin: 10px;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-            
-            .grid {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-        }
+        .hero { background: linear-gradient(45deg, #28a745, #20c997); color: white; padding: 2rem 0; }
+        .card { margin-bottom: 1rem; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        .stat-card { background: linear-gradient(45deg, #007bff, #6610f2); color: white; }
+        .search-section { background: #f8f9fa; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem; }
+        .table-container { max-height: 600px; overflow-y: auto; }
+        .loading { display: none; }
+        .price { font-weight: bold; color: #28a745; }
+        .badge-custom { font-size: 0.75em; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🏢 Sistema de Inventario</h1>
-            <p>Panel de Administración - Versión 3.0 Optimizada</p>
-        </div>
-        
-        <div class="status-grid">
-            <div class="status-card">
-                <h4>Estado del Sistema</h4>
-                <div class="number" id="system-status">✅</div>
-                <p>Funcionando</p>
-            </div>
-            <div class="status-card">
-                <h4>API Version</h4>
-                <div class="number">3.0</div>
-                <p>Optimizada</p>
-            </div>
-            <div class="status-card">
-                <h4>Base de Datos</h4>
-                <div class="number" id="db-status">📊</div>
-                <p>SQLite</p>
-            </div>
-            <div class="status-card">
-                <h4>Artículos</h4>
-                <div class="number" id="total-articles">--</div>
-                <p>Registrados</p>
-            </div>
-        </div>
-        
-        <div class="grid">
-            <div class="card">
-                <h3>📋 Documentación API</h3>
-                <p>Explora y prueba todos los endpoints de la API de forma interactiva con Swagger UI.</p>
-                <a href="/docs" class="btn" target="_blank">Abrir Swagger UI</a>
-            </div>
-            
-            <div class="card">
-                <h3>📚 Documentación ReDoc</h3>
-                <p>Visualiza la documentación completa de la API en formato ReDoc alternativo.</p>
-                <a href="/redoc" class="btn" target="_blank">Abrir ReDoc</a>
-            </div>
-            
-            <div class="card">
-                <h3>🔄 Sincronizar Google Sheets</h3>
-                <p>Sincroniza los datos del inventario con Google Sheets de forma automática.</p>
-                <button class="btn" onclick="syncGoogleSheets()">Sincronizar Datos</button>
-            </div>
-            
-            <div class="card">
-                <h3>📊 Ver Artículos</h3>
-                <p>Accede directamente a los datos JSON de todos los artículos del inventario.</p>
-                <a href="/api/articulos" class="btn" target="_blank">Ver Artículos JSON</a>
-            </div>
-        </div>
-        
-        <div class="endpoints">
-            <h3>🚀 Endpoints Disponibles</h3>
-            <div class="endpoint-list">
-                <div class="endpoint get">
-                    <span>/api/articulos</span>
-                    <span class="method get">GET</span>
-                </div>
-                <div class="endpoint post">
-                    <span>/api/sync/pull</span>
-                    <span class="method post">POST</span>
-                </div>
-                <div class="endpoint post">
-                    <span>/api/sync/push</span>
-                    <span class="method post">POST</span>
-                </div>
-                <div class="endpoint get">
-                    <span>/docs</span>
-                    <span class="method get">GET</span>
-                </div>
-                <div class="endpoint get">
-                    <span>/redoc</span>
-                    <span class="method get">GET</span>
-                </div>
-                <div class="endpoint get">
-                    <span>/admin.html</span>
-                    <span class="method get">GET</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Procesando solicitud...</p>
-        </div>
-        
-        <div class="footer">
-            <p><strong>Sistema de Inventario v3.0</strong> - Optimizado para Python 3.13.5</p>
-            <p>Desarrollado con ❤️ usando FastAPI, SQLite y HTML5</p>
+    <!-- Header -->
+    <div class="hero text-center">
+        <div class="container">
+            <h1><i class="bi bi-search"></i> Sistema de Inventario - Consulta Avanzada</h1>
+            <p class="lead">Acceso completo a 3,000+ artículos del inventario institucional</p>
         </div>
     </div>
-    
-    <script>
-        // Cargar estadísticas al inicio
-        document.addEventListener('DOMContentLoaded', function() {
-            loadArticleCount();
-        });
-        
-        // Función para cargar el conteo de artículos
-        async function loadArticleCount() {
-            try {
-                const response = await fetch('/api/articulos');
-                if (response.ok) {
-                    const articles = await response.json();
-                    document.getElementById('total-articles').textContent = articles.length;
-                    document.getElementById('system-status').textContent = '🟢';
-                    document.getElementById('db-status').textContent = '🟢';
-                } else {
-                    document.getElementById('total-articles').textContent = 'Error';
-                    document.getElementById('system-status').textContent = '🔴';
-                }
-            } catch (error) {
-                console.error('Error loading article count:', error);
-                document.getElementById('total-articles').textContent = 'Error';
-                document.getElementById('system-status').textContent = '🔴';
-            }
-        }
-        
-        // Función para sincronizar con Google Sheets
-        async function syncGoogleSheets() {
-            const loading = document.getElementById('loading');
-            loading.style.display = 'block';
+
+    <div class="container mt-4">
+        <!-- Estadísticas principales -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body text-center">
+                        <i class="bi bi-box display-4"></i>
+                        <h3 id="total-articulos">...</h3>
+                        <p class="mb-0">Total Artículos</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card" style="background: linear-gradient(45deg, #28a745, #20c997);">
+                    <div class="card-body text-center">
+                        <i class="bi bi-currency-dollar display-4"></i>
+                        <h3 id="valor-total">...</h3>
+                        <p class="mb-0">Valor Total</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card" style="background: linear-gradient(45deg, #fd7e14, #e83e8c);">
+                    <div class="card-body text-center">
+                        <i class="bi bi-tags display-4"></i>
+                        <h3 id="total-categorias">...</h3>
+                        <p class="mb-0">Categorías</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card" style="background: linear-gradient(45deg, #6f42c1, #e83e8c);">
+                    <div class="card-body text-center">
+                        <i class="bi bi-people display-4"></i>
+                        <h3 id="total-responsables">...</h3>
+                        <p class="mb-0">Responsables</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de Búsqueda y Filtros -->
+        <div class="search-section">
+            <h5><i class="bi bi-funnel"></i> Búsqueda y Filtros Avanzados</h5>
             
-            try {
-                // Primero pull (importar desde Google Sheets)
-                const pullResponse = await fetch('/api/sync/pull', { method: 'POST' });
+            <!-- Búsqueda por texto -->
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="busqueda-texto" placeholder="Buscar por nombre, marca, modelo, descripción...">
+                        <button class="btn btn-primary" onclick="buscarTexto()">Buscar</button>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-success w-100" onclick="cargarInventario()"><i class="bi bi-arrow-repeat"></i> Cargar Todo</button>
+                </div>
+            </div>
+            
+            <!-- Filtros -->
+            <div class="row">
+                <div class="col-md-3">
+                    <select class="form-select" id="filtro-categoria">
+                        <option value="">Todas las categorías</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="filtro-responsable">
+                        <option value="">Todos los responsables</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" id="filtro-marca" placeholder="Filtrar por marca">
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-outline-primary w-100" onclick="aplicarFiltros()"><i class="bi bi-filter"></i> Aplicar Filtros</button>
+                </div>
+            </div>
+            
+            <!-- Filtros de fecha y valor -->
+            <div class="row mt-3">
+                <div class="col-md-2">
+                    <label class="form-label">Fecha desde:</label>
+                    <input type="date" class="form-control" id="fecha-desde">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Fecha hasta:</label>
+                    <input type="date" class="form-control" id="fecha-hasta">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Valor mín:</label>
+                    <input type="number" class="form-control" id="valor-min" placeholder="0">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Valor máx:</label>
+                    <input type="number" class="form-control" id="valor-max" placeholder="999999999">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Por página:</label>
+                    <select class="form-select" id="items-por-pagina">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-warning w-100" onclick="limpiarFiltros()"><i class="bi bi-x-circle"></i> Limpiar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="text-center loading" id="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p>Consultando inventario...</p>
+        </div>
+
+        <!-- Resultados -->
+        <div class="card" id="resultados-container" style="display: none;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-table"></i> Resultados del Inventario</h5>
+                <div>
+                    <span class="badge bg-primary" id="total-resultados">0 artículos</span>
+                    <button class="btn btn-sm btn-outline-success" onclick="exportarResultados()">
+                        <i class="bi bi-download"></i> Exportar
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <!-- Paginación superior -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div id="info-pagina">Mostrando 0 - 0 de 0 artículos</div>
+                    <nav id="paginacion-superior"></nav>
+                </div>
                 
-                if (pullResponse.ok) {
-                    // Luego push (exportar a Google Sheets)
-                    const pushResponse = await fetch('/api/sync/push', { method: 'POST' });
-                    
-                    if (pushResponse.ok) {
-                        alert('✅ Sincronización con Google Sheets completada exitosamente');
-                        loadArticleCount(); // Recargar estadísticas
-                    } else {
-                        alert('⚠️ Error en la sincronización push con Google Sheets');
-                    }
-                } else {
-                    alert('⚠️ Error en la sincronización pull con Google Sheets');
+                <!-- Tabla de resultados -->
+                <div class="table-container">
+                    <table class="table table-hover">
+                        <thead class="table-primary sticky-top">
+                            <tr>
+                                <th>Placa</th>
+                                <th>Nombre</th>
+                                <th>Marca</th>
+                                <th>Categoría</th>
+                                <th>Valor</th>
+                                <th>Responsable</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-resultados">
+                            <!-- Resultados se cargan dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Paginación inferior -->
+                <div class="d-flex justify-content-center mt-3">
+                    <nav id="paginacion-inferior"></nav>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de detalle -->
+    <div class="modal fade" id="modalDetalle" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-info-circle"></i> Detalle del Artículo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="contenido-detalle">
+                    <!-- Contenido del detalle se carga dinámicamente -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables globales
+        let datosActuales = [];
+        let paginaActual = 1;
+        let totalPaginas = 1;
+        
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            cargarEstadisticas();
+            cargarCategorias();
+            cargarResponsables();
+            
+            // Event listeners
+            document.getElementById('busqueda-texto').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    buscarTexto();
+                }
+            });
+        });
+        
+        // Cargar estadísticas principales
+        async function cargarEstadisticas() {
+            try {
+                const response = await fetch('/api/inventario/estadisticas');
+                const data = await response.json();
+                
+                if (data.resumen) {
+                    document.getElementById('total-articulos').textContent = data.resumen.total_articulos.toLocaleString();
+                    document.getElementById('valor-total').textContent = '$' + Math.round(data.resumen.valor_total_inventario).toLocaleString();
+                    document.getElementById('total-categorias').textContent = data.resumen.total_categorias;
+                    document.getElementById('total-responsables').textContent = data.resumen.total_responsables;
                 }
             } catch (error) {
-                console.error('Error syncing:', error);
-                alert('❌ Error de conexión durante la sincronización');
-            } finally {
-                loading.style.display = 'none';
+                console.error('Error cargando estadísticas:', error);
             }
         }
         
-        // Función para mostrar información del sistema
-        function showSystemInfo() {
-            const info = `
-Sistema de Inventario v3.0
-- FastAPI Framework
-- SQLite Database  
-- Python 3.13.5
-- Google Sheets Integration
-- Swagger UI Documentation
-- Real-time Sync Capabilities
-            `;
-            alert(info);
+        // Cargar categorías para filtro
+        async function cargarCategorias() {
+            try {
+                const response = await fetch('/api/inventario/categorias');
+                const data = await response.json();
+                const select = document.getElementById('filtro-categoria');
+                
+                data.categorias.forEach(categoria => {
+                    const option = document.createElement('option');
+                    option.value = categoria;
+                    option.textContent = categoria;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error cargando categorías:', error);
+            }
         }
         
-        // Animaciones y efectos visuales
-        document.querySelectorAll('.card').forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateY(-10px) scale(1.02)';
+        // Cargar responsables para filtro
+        async function cargarResponsables() {
+            try {
+                const response = await fetch('/api/inventario/responsables');
+                const data = await response.json();
+                const select = document.getElementById('filtro-responsable');
+                
+                data.responsables.forEach(responsable => {
+                    const option = document.createElement('option');
+                    option.value = responsable;
+                    option.textContent = responsable;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error cargando responsables:', error);
+            }
+        }
+        
+        // Cargar inventario completo
+        async function cargarInventario(pagina = 1) {
+            mostrarLoading(true);
+            
+            try {
+                const limit = document.getElementById('items-por-pagina').value;
+                const response = await fetch(`/api/inventario/consulta?page=${pagina}&limit=${limit}`);
+                const data = await response.json();
+                
+                mostrarResultados(data);
+                paginaActual = data.page;
+                totalPaginas = data.total_pages;
+                
+            } catch (error) {
+                console.error('Error cargando inventario:', error);
+                alert('Error cargando el inventario');
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+        
+        // Buscar por texto
+        async function buscarTexto() {
+            const texto = document.getElementById('busqueda-texto').value.trim();
+            if (!texto) {
+                alert('Ingrese un texto para buscar');
+                return;
+            }
+            
+            mostrarLoading(true);
+            
+            try {
+                const response = await fetch(`/api/inventario/buscar?q=${encodeURIComponent(texto)}&limit=100`);
+                const data = await response.json();
+                
+                const dataFormateada = {
+                    articulos: data.resultados || [],
+                    total: data.total_encontrados || 0,
+                    page: 1,
+                    total_pages: 1,
+                    has_next: false,
+                    has_prev: false
+                };
+                
+                mostrarResultados(dataFormateada);
+                
+            } catch (error) {
+                console.error('Error en búsqueda:', error);
+                alert('Error realizando la búsqueda');
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+        
+        // Aplicar filtros
+        async function aplicarFiltros(pagina = 1) {
+            mostrarLoading(true);
+            
+            try {
+                const params = new URLSearchParams();
+                params.append('page', pagina);
+                params.append('limit', document.getElementById('items-por-pagina').value);
+                
+                const categoria = document.getElementById('filtro-categoria').value;
+                const responsable = document.getElementById('filtro-responsable').value;
+                const marca = document.getElementById('filtro-marca').value;
+                const fechaDesde = document.getElementById('fecha-desde').value;
+                const fechaHasta = document.getElementById('fecha-hasta').value;
+                const valorMin = document.getElementById('valor-min').value;
+                const valorMax = document.getElementById('valor-max').value;
+                
+                if (categoria) params.append('categoria', categoria);
+                if (responsable) params.append('responsable', responsable);
+                if (marca) params.append('marca', marca);
+                if (fechaDesde) params.append('fecha_desde', fechaDesde);
+                if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+                if (valorMin) params.append('valor_min', valorMin);
+                if (valorMax) params.append('valor_max', valorMax);
+                
+                const response = await fetch(`/api/inventario/consulta?${params.toString()}`);
+                const data = await response.json();
+                
+                mostrarResultados(data);
+                paginaActual = data.page;
+                totalPaginas = data.total_pages;
+                
+            } catch (error) {
+                console.error('Error aplicando filtros:', error);
+                alert('Error aplicando los filtros');
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+        
+        // Mostrar resultados
+        function mostrarResultados(data) {
+            datosActuales = data.articulos || [];
+            
+            document.getElementById('total-resultados').textContent = `${data.total || 0} artículos`;
+            
+            const tbody = document.getElementById('tabla-resultados');
+            tbody.innerHTML = '';
+            
+            if (datosActuales.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No se encontraron artículos</td></tr>';
+                document.getElementById('resultados-container').style.display = 'block';
+                return;
+            }
+            
+            datosActuales.forEach(articulo => {
+                const fila = document.createElement('tr');
+                fila.innerHTML = `
+                    <td><span class="badge bg-secondary">${articulo.placa}</span></td>
+                    <td><strong>${articulo.nombre}</strong></td>
+                    <td>${articulo.marca}</td>
+                    <td><span class="badge bg-info badge-custom">${articulo.categoria}</span></td>
+                    <td class="price">$${parseFloat(articulo.valor || 0).toLocaleString()}</td>
+                    <td><small>${articulo.responsable}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="verDetalle('${articulo.placa}')">
+                            <i class="bi bi-eye"></i> Ver
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(fila);
             });
             
-            card.addEventListener('mouseleave', function() {
-                this.style.transform = 'translateY(0) scale(1)';
+            // Actualizar información de página
+            const inicio = ((data.page || 1) - 1) * parseInt(document.getElementById('items-por-pagina').value) + 1;
+            const fin = Math.min(inicio + datosActuales.length - 1, data.total || 0);
+            document.getElementById('info-pagina').textContent = `Mostrando ${inicio} - ${fin} de ${data.total || 0} artículos`;
+            
+            // Crear paginación
+            crearPaginacion(data);
+            
+            document.getElementById('resultados-container').style.display = 'block';
+        }
+        
+        // Crear controles de paginación
+        function crearPaginacion(data) {
+            const paginacionHTML = `
+                <ul class="pagination pagination-sm">
+                    <li class="page-item ${!data.has_prev ? 'disabled' : ''}">
+                        <a class="page-link" href="#" onclick="cambiarPagina(${(data.page || 1) - 1})">Anterior</a>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link">${data.page || 1} de ${data.total_pages || 1}</span>
+                    </li>
+                    <li class="page-item ${!data.has_next ? 'disabled' : ''}">
+                        <a class="page-link" href="#" onclick="cambiarPagina(${(data.page || 1) + 1})">Siguiente</a>
+                    </li>
+                </ul>
+            `;
+            
+            document.getElementById('paginacion-superior').innerHTML = paginacionHTML;
+            document.getElementById('paginacion-inferior').innerHTML = paginacionHTML;
+        }
+        
+        // Cambiar página
+        function cambiarPagina(nuevaPagina) {
+            if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
+            
+            // Verificar si hay filtros activos
+            const hayFiltros = document.getElementById('filtro-categoria').value ||
+                              document.getElementById('filtro-responsable').value ||
+                              document.getElementById('filtro-marca').value ||
+                              document.getElementById('fecha-desde').value ||
+                              document.getElementById('fecha-hasta').value ||
+                              document.getElementById('valor-min').value ||
+                              document.getElementById('valor-max').value;
+            
+            if (hayFiltros) {
+                aplicarFiltros(nuevaPagina);
+            } else {
+                cargarInventario(nuevaPagina);
+            }
+        }
+        
+        // Ver detalle de artículo
+        async function verDetalle(placa) {
+            try {
+                const response = await fetch(`/api/inventario/${placa}/detalle`);
+                const data = await response.json();
+                
+                if (data.encontrado && data.articulo) {
+                    const articulo = data.articulo;
+                    const contenido = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Información General</h6>
+                                <table class="table table-sm">
+                                    <tr><td><strong>Placa:</strong></td><td>${articulo.placa}</td></tr>
+                                    <tr><td><strong>Nombre:</strong></td><td>${articulo.nombre}</td></tr>
+                                    <tr><td><strong>Marca:</strong></td><td>${articulo.marca}</td></tr>
+                                    <tr><td><strong>Modelo:</strong></td><td>${articulo.modelo}</td></tr>
+                                    <tr><td><strong>Categoría:</strong></td><td>${articulo.categoria}</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Información Administrativa</h6>
+                                <table class="table table-sm">
+                                    <tr><td><strong>Valor:</strong></td><td class="price">$${parseFloat(articulo.valor || 0).toLocaleString()}</td></tr>
+                                    <tr><td><strong>Fecha Adq.:</strong></td><td>${articulo.fecha_adquisicion}</td></tr>
+                                    <tr><td><strong>Ubicación:</strong></td><td>${articulo.ubicacion}</td></tr>
+                                    <tr><td><strong>Responsable:</strong></td><td>${articulo.responsable}</td></tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6>Descripción Técnica</h6>
+                                <p class="bg-light p-3 rounded">${articulo.descripcion}</p>
+                            </div>
+                        </div>
+                        
+                        ${articulo.observaciones ? `
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6>Observaciones</h6>
+                                <p class="text-muted">${articulo.observaciones}</p>
+                            </div>
+                        </div>
+                        ` : ''}
+                    `;
+                    
+                    document.getElementById('contenido-detalle').innerHTML = contenido;
+                    new bootstrap.Modal(document.getElementById('modalDetalle')).show();
+                } else {
+                    alert('No se pudo cargar el detalle del artículo');
+                }
+            } catch (error) {
+                console.error('Error cargando detalle:', error);
+                alert('Error cargando el detalle');
+            }
+        }
+        
+        // Limpiar filtros
+        function limpiarFiltros() {
+            document.getElementById('busqueda-texto').value = '';
+            document.getElementById('filtro-categoria').value = '';
+            document.getElementById('filtro-responsable').value = '';
+            document.getElementById('filtro-marca').value = '';
+            document.getElementById('fecha-desde').value = '';
+            document.getElementById('fecha-hasta').value = '';
+            document.getElementById('valor-min').value = '';
+            document.getElementById('valor-max').value = '';
+            document.getElementById('items-por-pagina').value = '50';
+            
+            // Ocultar resultados
+            document.getElementById('resultados-container').style.display = 'none';
+        }
+        
+        // Exportar resultados (simulado)
+        function exportarResultados() {
+            if (datosActuales.length === 0) {
+                alert('No hay datos para exportar');
+                return;
+            }
+            
+            // Crear CSV simple
+            let csv = 'Placa,Nombre,Marca,Modelo,Categoria,Valor,Fecha,Ubicacion,Responsable\n';
+            
+            datosActuales.forEach(articulo => {
+                csv += `"${articulo.placa}","${articulo.nombre}","${articulo.marca}","${articulo.modelo}","${articulo.categoria}","${articulo.valor}","${articulo.fecha_adquisicion}","${articulo.ubicacion}","${articulo.responsable}"\n`;
             });
-        });
+            
+            // Descargar
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+        
+        // Mostrar/ocultar loading
+        function mostrarLoading(mostrar) {
+            document.getElementById('loading').style.display = mostrar ? 'block' : 'none';
+        }
+        
+        // Funciones adicionales de compatibilidad (para mantener funcionalidad anterior)
+        async function syncData() {
+            try {
+                const response = await fetch('/api/sync/pull', { method: 'POST' });
+                const data = await response.json();
+                alert('✅ ' + data.message);
+                
+                // Recargar estadísticas después de sincronizar
+                cargarEstadisticas();
+            } catch (error) {
+                alert('❌ Error en sincronización: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>
