@@ -1,0 +1,69 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.so
+
+# Logs y temporales
+*.log
+logs/
+*.tmp
+*.temp
+
+# Base de datos
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Archivos sensibles
+.env
+.env.local
+.env.production
+credentials.json
+google-credentials.json
+service-account-key.json
+
+# Sistema operativo
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# IDEs y editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Archivos de backup
+backup_*.db
+*.backup
+*.bak
+
+# Archivos patch
+*.patch
+*.diff
+*.orig
+*.rej
+
+# Tests
+.pytest_cache/
+.coverage
+.tox/
+htmlcov/
+
+# Distribución
+build/
+dist/
+*.egg-info/
