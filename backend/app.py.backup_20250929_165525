@@ -180,7 +180,7 @@ from fastapi import Query as FastAPIQuery
 from dotenv import load_dotenv
 
 # Configuración Google Sheets (si está disponible)
-GOOGLE_SHEET_ID = "1tCILvM3VkaACJMNnTZu4ZYM3x81HcoTlg6uoj-K6RRQ"
+GOOGLE_SHEET_ID = "1tCILvM3VkaACJMNnTZu4ZYM3x81HcoTlg6uoj-K6RRQ", "")
 CREDENTIALS_PATH = "backend/credentials.json"
 
 def get_google_sheet_data():
