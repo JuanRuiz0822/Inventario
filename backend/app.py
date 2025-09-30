@@ -1,336 +1,344 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse
-import sqlite3
+# Sistema de Inventario SENA - Versión Corregida
+from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi.staticfiles import StaticFiles  
+from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional, List
 import os
-from fastapi.middleware.cors import CORSMiddleware
-import sync_gs
-from fastapi.staticfiles import StaticFiles
-from typing import Optional
-
-app = FastAPI(
-    title="Sistema de Inventario API",
-    description="API optimizada para gestión de inventario con integración Google Sheets",
-    version="3.0.0"
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Configurar rutas de archivos estáticos
-frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
-app.mount("/frontend", StaticFiles(directory=frontend_path), name="frontend")
-
-# Ruta directa para admin.html (SOLUCIÓN AL PROBLEMA)
-@app.get("/admin.html")
-async def get_admin():
-    """Servir el panel administrativo"""
-    admin_file = os.path.join(os.path.dirname(__file__), "..", "frontend", "admin.html")
-    if os.path.exists(admin_file):
-        return FileResponse(admin_file)
-    else:
-        raise HTTPException(status_code=404, detail="Admin panel not found")
-
-# Ruta raíz que redirecciona al admin
-@app.get("/")
-async def root():
-    """Ruta raíz que redirecciona al panel administrativo"""
-    return {"message": "Sistema de Inventario API v3.0", "admin_panel": "/admin.html", "docs": "/docs"}
-
-# Endpoints para sincronización con Google Sheets
-@app.post("/api/sync/pull")
-def api_sync_pull(background_tasks: BackgroundTasks):
-    """Importar datos desde Google Sheets"""
-    try:
-        background_tasks.add_task(sync_gs.pull_sheet_to_sqlite)
-        return {"started": True, "action": "pull", "message": "Importación iniciada"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en sync pull: {str(e)}")
-
-@app.post("/api/sync/push")  
-def api_sync_push(background_tasks: BackgroundTasks):
-    """Exportar datos a Google Sheets"""
-    try:
-        background_tasks.add_task(sync_gs.push_sqlite_to_sheet)
-        return {"started": True, "action": "push", "message": "Exportación iniciada"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en sync push: {str(e)}")
-
-# Endpoint principal de artículos
-@app.get("/api/articulos")
-def get_articulos(q: Optional[str] = None):
-    """Obtener todos los artículos del inventario"""
-    try:
-        db_path = os.path.join(os.path.dirname(__file__), "inventario.db")
-        
-        # Crear base de datos si no existe
-        if not os.path.exists(db_path):
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS articulos (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre TEXT NOT NULL,
-                    descripcion TEXT,
-                    cantidad INTEGER DEFAULT 0,
-                    precio REAL DEFAULT 0.0,
-                    categoria TEXT,
-                    ubicacion TEXT,
-                    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Insertar datos de ejemplo
-            cursor.execute('''
-                INSERT INTO articulos (nombre, descripcion, cantidad, precio, categoria, ubicacion)
-                VALUES 
-                ('Laptop Dell', 'Laptop Dell Inspiron 15', 5, 899.99, 'Tecnología', 'Oficina A'),
-                ('Mouse Inalambrico', 'Mouse óptico inalámbrico', 25, 29.99, 'Accesorios', 'Almacén B'),
-                ('Monitor 24"', 'Monitor LED 24 pulgadas', 8, 199.99, 'Tecnología', 'Oficina A')
-            ''')
-            conn.commit()
-            conn.close()
-            
-            # Reconectar para consulta
-            conn = sqlite3.connect(db_path)
-        else:
-            conn = sqlite3.connect(db_path)
-            
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        if q:
-            cursor.execute("SELECT * FROM articulos WHERE nombre LIKE ? OR descripcion LIKE ?", 
-                         ('%'+q+'%', '%'+q+'%'))
-        else:
-            cursor.execute("SELECT * FROM articulos")
-            
-        rows = [dict(r) for r in cursor.fetchall()]
-        conn.close()
-        
-        return {
-            "total": len(rows),
-            "articulos": rows,
-            "message": f"Se encontraron {len(rows)} artículos"
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener artículos: {str(e)}")
-
-# Endpoint para obtener estadísticas
-@app.get("/api/stats")
-def get_stats():
-    """Obtener estadísticas del inventario"""
-    try:
-        db_path = os.path.join(os.path.dirname(__file__), "inventario.db")
-        if not os.path.exists(db_path):
-            return {"total_articulos": 0, "total_valor": 0, "categorias": 0}
-            
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Total de artículos
-        cursor.execute("SELECT COUNT(*) as total FROM articulos")
-        total_articulos = cursor.fetchone()[0]
-        
-        # Valor total del inventario
-        cursor.execute("SELECT SUM(cantidad * precio) as total_valor FROM articulos")
-        total_valor = cursor.fetchone()[0] or 0
-        
-        # Categorías únicas
-        cursor.execute("SELECT COUNT(DISTINCT categoria) as categorias FROM articulos")
-        categorias = cursor.fetchone()[0]
-        
-        conn.close()
-        
-        return {
-            "total_articulos": total_articulos,
-            "total_valor": round(total_valor, 2),
-            "categorias": categorias,
-            "status": "ok"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener estadísticas: {str(e)}")
-
-# Health check endpoint
-@app.get("/health")
-def health_check():
-    """Verificar estado del sistema"""
-    return {
-        "status": "healthy",
-        "version": "3.0.0",
-        "database": "connected" if os.path.exists(os.path.join(os.path.dirname(__file__), "inventario.db")) else "not_found",
-        "message": "Sistema funcionando correctamente"
-    }
-
-
-# ================================================================
-# FUNCIONALIDADES AVANZADAS DE CONSULTA - AGREGADAS INCREMENTALMENTE
-# ================================================================
-
-from typing import Dict, Any
+import re
 import gspread
 from google.oauth2.service_account import Credentials
-import os
-from fastapi import Query as FastAPIQuery
 from dotenv import load_dotenv
+import pandas as pd
 
-# Configuración Google Sheets (si está disponible)
-GOOGLE_SHEET_ID = "1tCILvM3VkaACJMNnTZu4ZYM3x81HcoTlg6uoj-K6RRQ"
-CREDENTIALS_PATH = "backend/credentials.json"
+# Configuración de base de datos
+DATABASE_URL = "sqlite:///./backend/inventario.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-def get_google_sheet_data():
-    """Obtener datos de Google Sheets si está configurado"""
+# Modelos de base de datos
+class Articulo(Base):
+    __tablename__ = "articulos"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    placa = Column(String, unique=True, index=True)
+    nombre = Column(String, index=True)
+    marca = Column(String)
+    modelo = Column(String)
+    categoria = Column(String, index=True)
+    descripcion = Column(Text)
+    valor = Column(String)
+    fecha_adquisicion = Column(String)
+    ubicacion = Column(String)
+    responsable = Column(String, index=True)
+    observaciones = Column(Text)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    activo = Column(Boolean, default=True)
+
+# Crear tablas
+Base.metadata.create_all(bind=engine)
+
+# Schemas Pydantic
+class ArticuloBase(BaseModel):
+    placa: str
+    nombre: str
+    marca: Optional[str] = ""
+    modelo: Optional[str] = ""
+    categoria: Optional[str] = ""
+    descripcion: Optional[str] = ""
+    valor: Optional[str] = "0"
+    fecha_adquisicion: Optional[str] = ""
+    ubicacion: Optional[str] = ""
+    responsable: Optional[str] = ""
+    observaciones: Optional[str] = ""
+
+class ArticuloCreate(ArticuloBase):
+    pass
+
+class ArticuloResponse(ArticuloBase):
+    id: int
+    fecha_creacion: datetime
+    activo: bool
+    
+    class Config:
+        from_attributes = True
+
+# Dependency
+def get_db():
+    db = SessionLocal()
     try:
-        if not GOOGLE_SHEET_ID or not os.path.exists(CREDENTIALS_PATH):
-            # Datos de ejemplo si no hay configuración
-            return [
-                {
-                    "id": "92271014746",
-                    "placa": "92271014746",
-                    "nombre": "COMPUTADOR PORTATIL HP 445R",
-                    "marca": "HP", 
-                    "modelo": "445R",
-                    "categoria": "COMPUTADOR PORTATIL",
-                    "descripcion": "AMD RYZEN 7, 16GB RAM, 512GB",
-                    "valor": "1789685.04",
-                    "fecha_adquisicion": "2020-05-11",
-                    "ubicacion": "Oficina Principal",
-                    "responsable": "ALVAREZ DIAZ JUAN GONZALO",
-                    "observaciones": "Contiene mouse maletín guaya"
-                },
-                {
-                    "id": "92271018040",
-                    "placa": "92271018040", 
-                    "nombre": "ACCESS POINT RUIJIE RG-RAP-2260H",
-                    "marca": "RUIJIE",
-                    "modelo": "RG-RAP-2260H",
-                    "categoria": "ACCES POINT",
-                    "descripcion": "Wi-Fi 6 802.11ax, 512 usuarios simultáneos",
-                    "valor": "2730401.68",
-                    "fecha_adquisicion": "2024-12-30", 
-                    "ubicacion": "Centro de Datos",
-                    "responsable": "ALVAREZ DIAZ JUAN GONZALO",
-                    "observaciones": "Conectividad inalámbrica empresarial"
-                },
-                {
-                    "id": "92271016061",
-                    "placa": "92271016061",
-                    "nombre": "CONTROLADOR PLC SIEMENS S7-1500",
-                    "marca": "SIEMENS",
-                    "modelo": "516-3FN00-0AB0", 
-                    "categoria": "CONTROLADOR LOGICO PROGRAMABLE",
-                    "descripcion": "CPU 1516-3 PNDP, 1MB/5MB, 32DI/32DQ",
-                    "valor": "14665000.00",
-                    "fecha_adquisicion": "2022-06-22",
-                    "ubicacion": "Laboratorio Automatización",
-                    "responsable": "ALVAREZ DIAZ JUAN GONZALO", 
-                    "observaciones": "Para automatización industrial"
-                },
-                {
-                    "id": "922713360",
-                    "placa": "922713360",
-                    "nombre": "SILLA INTERLOCUTORA",
-                    "marca": "N/A",
-                    "modelo": "INTERLOCUTORA",
-                    "categoria": "SILLA",
-                    "descripcion": "Tubo redondo 22mm, tapizada espuma densidad 26",
-                    "valor": "152560.00", 
-                    "fecha_adquisicion": "2017-11-01",
-                    "ubicacion": "Sala de Reuniones",
-                    "responsable": "MANTILLA ARENAS WILLIAM",
-                    "observaciones": "Color naranja, espaldar polipropileno"
-                }
-            ]
+        yield db
+    finally:
+        db.close()
+
+# Función para obtener datos de Google Sheets
+def get_google_sheet_data():
+    """Obtener TODOS los datos reales de Google Sheets"""
+    try:
+        print("🔍 Conectando con Google Sheets...")
         
-        # Configuración real de Google Sheets
+        # Cargar variables de entorno
+        if os.path.exists('.env'):
+            load_dotenv()
+        
+        sheet_id = os.getenv('GOOGLE_SHEET_ID', '1tCILvM3VkaACJMNnTZu4ZYM3x81HcoTlg6uoj-K6RRQ')
+        credentials_path = os.getenv('GOOGLE_CREDENTIALS_PATH', 'backend/credentials.json')
+        
+        # Verificar que existen las credenciales
+        if not os.path.exists(credentials_path):
+            print(f"❌ Credenciales no encontradas: {credentials_path}")
+            return generar_datos_ejemplo_minimo()
+        
+        # Configurar Google Sheets API
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets.readonly",
             "https://www.googleapis.com/auth/drive.readonly"
         ]
         
-        creds = Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=scopes)
+        creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
         client = gspread.authorize(creds)
         
-        sheet = client.open_by_key(GOOGLE_SHEET_ID)
-        worksheet = sheet.sheet1
+        # Abrir Google Sheet
+        sheet = client.open_by_key(sheet_id)
+        print(f"✅ Sheet abierto: {sheet.title}")
         
-        # Obtener todos los datos
-        all_values = worksheet.get_all_records()
+        # Procesar todas las hojas
+        articulos_totales = []
         
-        # Convertir a formato estándar
-        articulos = []
-        for row in all_values:
-            if row.get("Placa"):  # Solo procesar filas con placa
-                articulo = {
-                    "id": str(row.get("Placa", "")),
-                    "placa": str(row.get("Placa", "")),
-                    "nombre": f"{row.get('Descripción Actual', '')} {row.get('Marca', '')} {row.get('Modelo', '')}".strip(),
-                    "marca": str(row.get("Marca", "")),
-                    "modelo": str(row.get("Modelo", "")),
-                    "categoria": str(row.get("Descripción Actual", "")),
-                    "descripcion": str(row.get("Atributos", "")),
-                    "valor": str(row.get("Valor Ingreso", "0")).replace(",", ""),
-                    "fecha_adquisicion": str(row.get("Fecha Adquisición", "")),
-                    "ubicacion": str(row.get("Ubicación", "")),
-                    "responsable": str(row.get("Centro/R", "")),  # Ajustar según estructura real
-                    "observaciones": str(row.get("Observaciones", ""))
-                }
-                articulos.append(articulo)
+        for worksheet in sheet.worksheets():
+            try:
+                print(f"📊 Procesando hoja: {worksheet.title}")
+                
+                # Obtener todos los valores
+                all_values = worksheet.get_all_values()
+                
+                if len(all_values) <= 1:
+                    print(f"   ⚠️ Hoja {worksheet.title} vacía")
+                    continue
+                
+                headers = all_values[0]
+                data_rows = all_values[1:]
+                
+                print(f"   📈 Procesando {len(data_rows)} filas...")
+                
+                # Procesar cada fila
+                for i, row in enumerate(data_rows):
+                    try:
+                        # Asegurar que la fila tenga suficientes columnas
+                        while len(row) < len(headers):
+                            row.append("")
+                        
+                        # Crear diccionario para la fila
+                        row_dict = {headers[j]: row[j] if j < len(row) else "" for j in range(len(headers))}
+                        
+                        # Extraer placa
+                        placa = str(row_dict.get("Placa", "")).strip()
+                        
+                        # Solo incluir registros con placa válida
+                        if not placa or placa.lower() in ['', 'nan', 'none', 'null', 'placa']:
+                            continue
+                        
+                        # Extraer datos principales
+                        desc_actual = str(row_dict.get("Descripción Actual", "")).strip()
+                        marca = str(row_dict.get("Marca", "")).strip()
+                        modelo = str(row_dict.get("Modelo", "")).strip()
+                        
+                        # Construir nombre completo
+                        nombre_completo = desc_actual
+                        if marca and marca.upper() not in ['NA', 'N/A', '.', 'NAN']:
+                            nombre_completo += f" {marca}"
+                        if modelo and modelo.upper() not in ['NA', 'N/A', '.', 'NAN']:
+                            nombre_completo += f" {modelo}"
+                        
+                        # Valor monetario
+                        valor_bruto = str(row_dict.get("Valor Ingreso", "0"))
+                        valor_limpio = re.sub(r'[^0-9.,]', '', valor_bruto.replace(',', ''))
+                        try:
+                            valor_numerico = float(valor_limpio) if valor_limpio else 0
+                        except:
+                            valor_numerico = 0
+                        
+                        # Determinar responsable
+                        responsable = "Sin asignar"
+                        
+                        # Buscar en varios campos posibles
+                        campos_responsable = ["Centro/R", "Responsable", "Custodio", "Usuario"]
+                        for campo in campos_responsable:
+                            if campo in row_dict and row_dict[campo].strip():
+                                texto_resp = str(row_dict[campo]).strip()
+                                if texto_resp not in ['76,922710', '76.922710', '', 'NA']:
+                                    responsable = texto_resp
+                                    break
+                        
+                        # Si no encontró, buscar nombres conocidos
+                        if responsable == "Sin asignar":
+                            nombres_conocidos = [
+                                "ALVAREZ DIAZ JUAN GONZALO",
+                                "MANTILLA ARENAS WILLIAM", 
+                                "ALEXANDER ZAPATA TORO",
+                                "LOPEZ HERRERA OSCAR ANTONIO",
+                                "DOSSMAN MARQUEZ NOHORA LILIANA",
+                                "ARIAS FIGUEROA JAIME DIEGO"
+                            ]
+                            
+                            fila_texto = " ".join(str(v) for v in row_dict.values()).upper()
+                            for nombre in nombres_conocidos:
+                                if any(parte in fila_texto for parte in nombre.split()):
+                                    responsable = nombre
+                                    break
+                        
+                        # Crear artículo
+                        articulo = {
+                            "id": placa,
+                            "placa": placa,
+                            "nombre": nombre_completo.strip() or desc_actual or "Artículo",
+                            "marca": marca if marca.upper() not in ['NA', 'N/A', 'NAN'] else "",
+                            "modelo": modelo if modelo.upper() not in ['NA', 'N/A', 'NAN'] else "",
+                            "categoria": desc_actual or "Sin categoría",
+                            "descripcion": str(row_dict.get("Atributos", desc_actual)).strip() or desc_actual,
+                            "valor": str(valor_numerico),
+                            "fecha_adquisicion": str(row_dict.get("Fecha Adquisición", "")).strip(),
+                            "ubicacion": str(row_dict.get("Ubicación", "SENA")).strip(),
+                            "responsable": responsable,
+                            "observaciones": str(row_dict.get("Observaciones", "")).strip(),
+                            "consecutivo": str(row_dict.get("Consec.", "")).strip(),
+                            "tipo_elemento": str(row_dict.get("Tipo", "")).strip(),
+                            "hoja_origen": worksheet.title
+                        }
+                        
+                        articulos_totales.append(articulo)
+                        
+                    except Exception as e:
+                        print(f"   ⚠️ Error fila {i+1}: {e}")
+                        continue
+                
+                count_hoja = len([a for a in articulos_totales if a.get('hoja_origen') == worksheet.title])
+                print(f"   ✅ {count_hoja} artículos procesados de {worksheet.title}")
+                
+            except Exception as e:
+                print(f"   ❌ Error procesando hoja {worksheet.title}: {e}")
+                continue
         
-        return articulos
+        print(f"🎉 TOTAL PROCESADO: {len(articulos_totales)} artículos")
+        
+        if not articulos_totales:
+            print("⚠️ No se encontraron artículos, usando datos mínimos")
+            return generar_datos_ejemplo_minimo()
+        
+        return articulos_totales
         
     except Exception as e:
-        print(f"Error accediendo Google Sheets: {e}")
-        # Retornar datos de ejemplo en caso de error
-        return get_google_sheet_data()  # Recursivo para obtener datos ejemplo
+        print(f"❌ Error general Google Sheets: {e}")
+        return generar_datos_ejemplo_minimo()
 
-# NUEVOS ENDPOINTS DE CONSULTA AVANZADA
+def generar_datos_ejemplo_minimo():
+    """Datos mínimos si Google Sheets falla"""
+    return [
+        {
+            "id": "ERROR_SHEETS",
+            "placa": "ERROR_SHEETS",
+            "nombre": "⚠️ ERROR CONEXIÓN GOOGLE SHEETS",
+            "marca": "SISTEMA",
+            "modelo": "ERROR",
+            "categoria": "ERROR",
+            "descripcion": "Verificar credenciales Google Sheets",
+            "valor": "0",
+            "fecha_adquisicion": "2025-01-01",
+            "ubicacion": "Sistema",
+            "responsable": "ADMINISTRADOR",
+            "observaciones": "Revisar configuración",
+            "consecutivo": "000",
+            "tipo_elemento": "ERROR",
+            "hoja_origen": "Sistema"
+        }
+    ]
+
+# Crear aplicación FastAPI
+app = FastAPI(
+    title="Sistema de Inventario SENA",
+    description="Sistema de gestión de inventario conectado con Google Sheets",
+    version="2.0.0"
+)
+
+# Servir archivos estáticos
+try:
+    app.mount("/static", StaticFiles(directory="frontend"), name="static")
+except:
+    print("⚠️ Directorio frontend no encontrado")
+
+# Rutas principales
+@app.get("/")
+async def root():
+    """Página principal"""
+    try:
+        return FileResponse("frontend/admin.html")
+    except:
+        return {"message": "Sistema de Inventario SENA", "status": "funcionando"}
+
+@app.get("/admin.html")  
+async def admin():
+    """Panel administrativo"""
+    try:
+        return FileResponse("frontend/admin.html")
+    except:
+        return {"message": "Panel administrativo disponible"}
+
+@app.get("/health")
+async def health():
+    """Estado del sistema"""
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+
+# API Endpoints
+@app.get("/api/articulos")
+async def get_articulos():
+    """Obtener todos los artículos"""
+    try:
+        articulos = get_google_sheet_data()
+        return articulos
+    except Exception as e:
+        return {"error": str(e), "articulos": []}
 
 @app.get("/api/inventario/consulta")
 async def consulta_inventario(
-    page: int = FastAPIQuery(1, ge=1, description="Número de página"),
-    limit: int = FastAPIQuery(50, ge=1, le=500, description="Artículos por página"),
-    categoria: str = FastAPIQuery(None, description="Filtrar por categoría"),
-    responsable: str = FastAPIQuery(None, description="Filtrar por responsable"),
-    marca: str = FastAPIQuery(None, description="Filtrar por marca"),
-    fecha_desde: str = FastAPIQuery(None, description="Fecha desde (YYYY-MM-DD)"),
-    fecha_hasta: str = FastAPIQuery(None, description="Fecha hasta (YYYY-MM-DD)"),
-    valor_min: float = FastAPIQuery(None, description="Valor mínimo"),
-    valor_max: float = FastAPIQuery(None, description="Valor máximo")
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=500),
+    busqueda: Optional[str] = Query(None),
+    categoria: Optional[str] = Query(None),
+    responsable: Optional[str] = Query(None)
 ):
-    """Consulta paginada del inventario con filtros avanzados"""
+    """Consulta paginada del inventario"""
     try:
-        # Obtener todos los datos
+        # Obtener todos los artículos
         todos_articulos = get_google_sheet_data()
         
         # Aplicar filtros
         articulos_filtrados = todos_articulos
         
+        if busqueda:
+            busqueda = busqueda.lower()
+            articulos_filtrados = [
+                art for art in articulos_filtrados 
+                if busqueda in art.get('nombre', '').lower() or 
+                   busqueda in art.get('placa', '').lower() or
+                   busqueda in art.get('descripcion', '').lower()
+            ]
+        
         if categoria:
-            articulos_filtrados = [a for a in articulos_filtrados if categoria.lower() in a.get("categoria", "").lower()]
+            articulos_filtrados = [
+                art for art in articulos_filtrados 
+                if categoria.lower() in art.get('categoria', '').lower()
+            ]
         
         if responsable:
-            articulos_filtrados = [a for a in articulos_filtrados if responsable.lower() in a.get("responsable", "").lower()]
-            
-        if marca:
-            articulos_filtrados = [a for a in articulos_filtrados if marca.lower() in a.get("marca", "").lower()]
-        
-        if fecha_desde:
-            articulos_filtrados = [a for a in articulos_filtrados if a.get("fecha_adquisicion", "") >= fecha_desde]
-            
-        if fecha_hasta:
-            articulos_filtrados = [a for a in articulos_filtrados if a.get("fecha_adquisicion", "") <= fecha_hasta]
-            
-        if valor_min is not None:
-            articulos_filtrados = [a for a in articulos_filtrados if float(a.get("valor", "0")) >= valor_min]
-            
-        if valor_max is not None:
-            articulos_filtrados = [a for a in articulos_filtrados if float(a.get("valor", "0")) <= valor_max]
+            articulos_filtrados = [
+                art for art in articulos_filtrados 
+                if responsable.lower() in art.get('responsable', '').lower()
+            ]
         
         # Paginación
         total = len(articulos_filtrados)
@@ -343,125 +351,46 @@ async def consulta_inventario(
             "total": total,
             "page": page,
             "limit": limit,
-            "total_pages": (total + limit - 1) // limit,
-            "has_next": end_idx < total,
-            "has_prev": page > 1
+            "total_pages": (total + limit - 1) // limit
         }
         
     except Exception as e:
-        return {
-            "error": f"Error consultando inventario: {str(e)}",
-            "articulos": [],
-            "total": 0
-        }
-
-@app.get("/api/inventario/buscar")
-async def buscar_inventario(
-    q: str = FastAPIQuery(..., description="Texto a buscar"),
-    campos: str = FastAPIQuery("nombre,marca,modelo,descripcion", description="Campos donde buscar"),
-    limit: int = FastAPIQuery(20, ge=1, le=100)
-):
-    """Búsqueda por texto libre en el inventario"""
-    try:
-        todos_articulos = get_google_sheet_data()
-        campos_buscar = campos.split(",")
-        
-        resultados = []
-        for articulo in todos_articulos:
-            # Buscar en los campos especificados
-            texto_buscar = ""
-            for campo in campos_buscar:
-                if campo in articulo:
-                    texto_buscar += f" {articulo[campo]}"
-            
-            if q.lower() in texto_buscar.lower():
-                resultados.append(articulo)
-                
-            if len(resultados) >= limit:
-                break
-                
-        return {
-            "query": q,
-            "campos": campos_buscar,
-            "resultados": resultados,
-            "total_encontrados": len(resultados)
-        }
-        
-    except Exception as e:
-        return {
-            "error": f"Error en búsqueda: {str(e)}",
-            "resultados": []
-        }
-
-@app.get("/api/inventario/categorias")
-async def get_categorias():
-    """Obtener lista de categorías disponibles"""
-    try:
-        articulos = get_google_sheet_data()
-        categorias = set()
-        
-        for articulo in articulos:
-            if articulo.get("categoria"):
-                categorias.add(articulo["categoria"])
-        
-        return {
-            "categorias": sorted(list(categorias)),
-            "total": len(categorias)
-        }
-        
-    except Exception as e:
-        return {
-            "error": f"Error obteniendo categorías: {str(e)}",
-            "categorias": []
-        }
-
-@app.get("/api/inventario/responsables")
-async def get_responsables():
-    """Obtener lista de responsables"""
-    try:
-        articulos = get_google_sheet_data()
-        responsables = set()
-        
-        for articulo in articulos:
-            if articulo.get("responsable"):
-                responsables.add(articulo["responsable"])
-        
-        return {
-            "responsables": sorted(list(responsables)),
-            "total": len(responsables)
-        }
-        
-    except Exception as e:
-        return {
-            "error": f"Error obteniendo responsables: {str(e)}",
-            "responsables": []
-        }
+        return {"error": str(e), "articulos": [], "total": 0}
 
 @app.get("/api/inventario/estadisticas")
 async def get_estadisticas():
-    """Dashboard con estadísticas del inventario"""
+    """Estadísticas del inventario"""
     try:
         articulos = get_google_sheet_data()
         
-        # Cálculos estadísticos
-        total_articulos = len(articulos)
-        valor_total = sum(float(a.get("valor", "0")) for a in articulos)
+        if not articulos:
+            return {"error": "No hay datos disponibles"}
         
-        # Categorías más comunes
+        # Calcular estadísticas
+        total_articulos = len(articulos)
+        valor_total = sum(float(art.get('valor', 0)) for art in articulos)
+        
+        # Top categorías
         categorias = {}
-        for articulo in articulos:
-            cat = articulo.get("categoria", "Sin categoría")
+        for art in articulos:
+            cat = art.get('categoria', 'Sin categoría')
             categorias[cat] = categorias.get(cat, 0) + 1
         
-        # Responsables
+        top_categorias = [
+            {"categoria": cat, "cantidad": cant} 
+            for cat, cant in sorted(categorias.items(), key=lambda x: x[1], reverse=True)[:10]
+        ]
+        
+        # Top responsables
         responsables = {}
-        for articulo in articulos:
-            resp = articulo.get("responsable", "Sin asignar")
+        for art in articulos:
+            resp = art.get('responsable', 'Sin asignar')
             responsables[resp] = responsables.get(resp, 0) + 1
         
-        # Top 5 de cada uno
-        top_categorias = sorted(categorias.items(), key=lambda x: x[1], reverse=True)[:5]
-        top_responsables = sorted(responsables.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_responsables = [
+            {"responsable": resp, "cantidad": cant}
+            for resp, cant in sorted(responsables.items(), key=lambda x: x[1], reverse=True)[:10]
+        ]
         
         return {
             "resumen": {
@@ -470,61 +399,54 @@ async def get_estadisticas():
                 "total_categorias": len(categorias),
                 "total_responsables": len(responsables)
             },
-            "top_categorias": [{"categoria": k, "cantidad": v} for k, v in top_categorias],
-            "top_responsables": [{"responsable": k, "cantidad": v} for k, v in top_responsables],
-            "timestamp": datetime.now().isoformat()
+            "top_categorias": top_categorias,
+            "top_responsables": top_responsables
         }
         
     except Exception as e:
-        return {
-            "error": f"Error generando estadísticas: {str(e)}",
-            "resumen": {"total_articulos": 0}
-        }
+        return {"error": str(e)}
 
-@app.get("/api/inventario/{placa}/detalle")
-async def get_detalle_articulo(placa: str):
-    """Obtener detalle completo de un artículo por su placa"""
+@app.get("/api/inventario/categorias")
+async def get_categorias():
+    """Obtener todas las categorías"""
     try:
         articulos = get_google_sheet_data()
-        
-        for articulo in articulos:
-            if articulo.get("placa") == placa or articulo.get("id") == placa:
-                return {
-                    "articulo": articulo,
-                    "encontrado": True
-                }
-        
-        return {
-            "error": f"Artículo con placa {placa} no encontrado",
-            "encontrado": False
-        }
-        
+        categorias = list(set(art.get('categoria', 'Sin categoría') for art in articulos))
+        return sorted(categorias)
     except Exception as e:
-        return {
-            "error": f"Error obteniendo detalle: {str(e)}",
-            "encontrado": False
-        }
+        return {"error": str(e), "categorias": []}
 
-# Endpoint mejorado de sincronización
+@app.get("/api/inventario/responsables") 
+async def get_responsables():
+    """Obtener todos los responsables"""
+    try:
+        articulos = get_google_sheet_data()
+        responsables = list(set(art.get('responsable', 'Sin asignar') for art in articulos))
+        return sorted(responsables)
+    except Exception as e:
+        return {"error": str(e), "responsables": []}
+
 @app.post("/api/sync/pull")
-async def sync_pull_mejorado():
-    """Sincronización mejorada desde Google Sheets"""
+async def sync_pull():
+    """Sincronizar datos desde Google Sheets"""
     try:
         articulos = get_google_sheet_data()
-        
         return {
             "message": "Sincronización exitosa",
-            "articulos_sincronizados": len(articulos),
-            "timestamp": datetime.now().isoformat(),
-            "estado": "ok"
+            "total_articulos": len(articulos),
+            "timestamp": datetime.utcnow().isoformat()
         }
-        
     except Exception as e:
-        return {
-            "message": f"Error en sincronización: {str(e)}",
-            "articulos_sincronizados": 0,
-            "estado": "error"
-        }
+        return {"error": str(e)}
 
+# Manejo de errores
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"message": exc.detail}
+    )
 
-
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
