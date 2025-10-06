@@ -1,0 +1,6 @@
+# Configuración Google Sheets API
+GOOGLE_SHEET_ID=1tCILvM3VkaACJMNnTZu4ZYM3x81HcoTlg6uoj-K6RRQ
+GOOGLE_CREDENTIALS_PATH=backend/credentials.json
+
+# Configuración del sistema
+DEBUG=true
