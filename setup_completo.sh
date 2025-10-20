@@ -1,3 +1,130 @@
+#!/bin/bash
+
+# ================================================================
+#  SCRIPT DE CONFIGURACIÓN COMPLETA - Sistema Inventario SENA
+# ================================================================
+
+set -e  # Detener si hay errores
+
+# Colores
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}"
+echo "================================================================"
+echo "  CONFIGURACIÓN AUTOMÁTICA - Sistema Inventario SENA v3.0"
+echo "================================================================"
+echo -e "${NC}"
+
+# ============================================================
+# PASO 1: Verificar estructura
+# ============================================================
+echo -e "${YELLOW}[1/7] Verificando estructura del proyecto...${NC}"
+
+if [ ! -d "backend" ]; then
+    echo -e "${RED}ERROR: No existe carpeta 'backend'${NC}"
+    exit 1
+fi
+
+if [ ! -d "frontend" ]; then
+    echo -e "${RED}ERROR: No existe carpeta 'frontend'${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Estructura correcta${NC}\n"
+
+# ============================================================
+# PASO 2: Configurar variables de entorno
+# ============================================================
+echo -e "${YELLOW}[2/7] Configurando variables de entorno (.env)...${NC}"
+
+cat > backend/.env << 'EOF'
+# Configuración Google Sheets
+GOOGLE_SHEET_ID=1tCILvM3VkaACJMNnTZu4ZYM3x81HcoTlg6uoj-K6RRQ
+GOOGLE_CREDENTIALS_PATH=credentials.json
+
+# Configuración del servidor
+HOST=0.0.0.0
+PORT=8000
+DEBUG=True
+EOF
+
+echo -e "${GREEN}✓ Archivo .env creado/actualizado${NC}\n"
+
+# ============================================================
+# PASO 3: Verificar credenciales
+# ============================================================
+echo -e "${YELLOW}[3/7] Verificando credenciales de Google...${NC}"
+
+if [ ! -f "backend/credentials.json" ]; then
+    echo -e "${RED}⚠️  ATENCIÓN: credentials.json NO encontrado${NC}"
+    echo ""
+    echo "Debes:"
+    echo "1. Ir a https://console.cloud.google.com"
+    echo "2. Crear una cuenta de servicio"
+    echo "3. Descargar credentials.json"
+    echo "4. Colocarlo en: backend/credentials.json"
+    echo ""
+    read -p "¿Ya tienes el archivo? (s/n): " respuesta
+    if [[ "$respuesta" != "s" ]]; then
+        echo -e "${RED}Proceso cancelado. Configura credentials.json primero.${NC}"
+        exit 1
+    fi
+fi
+
+# Extraer email de servicio
+if [ -f "backend/credentials.json" ]; then
+    SERVICE_EMAIL=$(python3 -c "import json; print(json.load(open('backend/credentials.json'))['client_email'])" 2>/dev/null || echo "Error al leer")
+    
+    if [ "$SERVICE_EMAIL" != "Error al leer" ]; then
+        echo -e "${GREEN}✓ Credenciales encontradas${NC}"
+        echo -e "${BLUE}📧 Cuenta de servicio: ${SERVICE_EMAIL}${NC}"
+        echo -e "${YELLOW}⚠️  IMPORTANTE: Comparte tu Google Sheet con este email (permisos de Editor)${NC}\n"
+    else
+        echo -e "${YELLOW}⚠️  No se pudo leer el email. Verifica el formato del JSON${NC}\n"
+    fi
+fi
+
+# ============================================================
+# PASO 4: Instalar dependencias Python
+# ============================================================
+echo -e "${YELLOW}[4/7] Instalando dependencias Python...${NC}"
+
+cd backend
+
+# Activar entorno virtual si existe
+if [ -d ".venv" ]; then
+    echo "Activando entorno virtual..."
+    source .venv/Scripts/activate 2>/dev/null || source .venv/bin/activate 2>/dev/null || true
+fi
+
+pip install -q --upgrade pip
+pip install -q fastapi uvicorn python-dotenv gspread google-auth openpyxl pandas
+
+echo -e "${GREEN}✓ Dependencias instaladas${NC}\n"
+
+cd ..
+
+# ============================================================
+# PASO 5: Crear backup del app.py actual
+# ============================================================
+echo -e "${YELLOW}[5/7] Creando backup de app.py...${NC}"
+
+if [ -f "backend/app.py" ]; then
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    cp backend/app.py "backend/app.py.backup_${TIMESTAMP}"
+    echo -e "${GREEN}✓ Backup creado: app.py.backup_${TIMESTAMP}${NC}\n"
+fi
+
+# ============================================================
+# PASO 6: Generar nuevo app.py optimizado
+# ============================================================
+echo -e "${YELLOW}[6/7] Generando backend optimizado (app.py)...${NC}"
+
+cat > backend/app.py << 'PYCODE'
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -402,3 +529,75 @@ async def refresh_cache():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+PYCODE
+
+echo -e "${GREEN}✓ Backend optimizado generado${NC}\n"
+
+# ============================================================
+# PASO 7: Crear script de inicio
+# ============================================================
+echo -e "${YELLOW}[7/7] Creando scripts de inicio...${NC}"
+
+# Script para Windows (PowerShell)
+cat > iniciar_servidor.ps1 << 'PSCODE'
+Write-Host "Iniciando Sistema Inventario SENA..." -ForegroundColor Green
+Set-Location backend
+if (Test-Path .venv/Scripts/Activate.ps1) {
+    .venv/Scripts/Activate.ps1
+}
+python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
+PSCODE
+
+# Script para Linux/Mac (Bash)
+cat > iniciar_servidor.sh << 'BASHCODE'
+#!/bin/bash
+echo "Iniciando Sistema Inventario SENA..."
+cd backend
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+fi
+python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
+BASHCODE
+
+chmod +x iniciar_servidor.sh
+
+echo -e "${GREEN}✓ Scripts de inicio creados${NC}\n"
+
+# ============================================================
+# RESUMEN FINAL
+# ============================================================
+echo -e "${BLUE}"
+echo "================================================================"
+echo "           ✓ CONFIGURACIÓN COMPLETADA EXITOSAMENTE"
+echo "================================================================"
+echo -e "${NC}"
+
+echo -e "${GREEN}Todo está listo para usar. Sigue estos pasos:${NC}\n"
+
+echo -e "${YELLOW}1.${NC} Asegúrate de tener credentials.json en backend/"
+echo -e "${YELLOW}2.${NC} Comparte tu Google Sheet con: ${SERVICE_EMAIL}"
+echo -e "${YELLOW}3.${NC} Inicia el servidor:"
+echo ""
+echo -e "   ${GREEN}Windows:${NC}  ./iniciar_servidor.ps1"
+echo -e "   ${GREEN}Linux/Mac:${NC}  ./iniciar_servidor.sh"
+echo ""
+echo -e "   ${GREEN}O manualmente:${NC}"
+echo -e "   cd backend"
+echo -e "   python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000"
+echo ""
+echo -e "${YELLOW}4.${NC} Accede en el navegador:"
+echo -e "   ${BLUE}http://localhost:8000/${NC}"
+echo ""
+echo -e "${GREEN}Características del nuevo sistema:${NC}"
+echo "  ✓ Mapeo inteligente de columnas"
+echo "  ✓ Normalización automática de placas"
+echo "  ✓ Logging detallado para diagnóstico"
+echo "  ✓ Cache optimizado"
+echo "  ✓ Manejo robusto de errores"
+echo "  ✓ Estadísticas avanzadas"
+echo ""
+echo -e "${YELLOW}Para verificar el estado del sistema:${NC}"
+echo -e "   ${BLUE}http://localhost:8000/api/health${NC}"
+echo ""
+echo -e "${GREEN}¡Listo para usar!${NC}"
+echo ""
