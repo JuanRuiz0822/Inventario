@@ -1,0 +1,22 @@
+name: SonarCloud
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        with:
+          args: >
+            -Dsonar.organization=juanruiz0822
+            -Dsonar.projectKey=JuanRuiz0822_Inventario
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
