@@ -300,6 +300,7 @@
             color: var(--text-dark);
             text-transform: uppercase;
             letter-spacing: 0.5px;
+
         }
 
         tbody tr {
@@ -533,6 +534,8 @@
             color: var(--danger);
             border-left: 4px solid var(--danger);
         }
+
+       
     </style>
 </head>
 <body>
@@ -556,29 +559,7 @@
         <div id="alertSuccess" class="alert alert-success"></div>
         <div id="alertError" class="alert alert-danger"></div>
 
-        <!-- Stats Section -->
-        <div class="stats-grid">
-            <div class="stat-card primary">
-                <div class="stat-icon">📦</div>
-                <div class="stat-value" id="totalArticulos">0</div>
-                <div class="stat-label">Total Artículos</div>
-            </div>
-            <div class="stat-card secondary">
-                <div class="stat-icon">📄</div>
-                <div class="stat-value" id="totalHojas">0</div>
-                <div class="stat-label">Hojas Procesadas</div>
-            </div>
-            <div class="stat-card accent">
-                <div class="stat-icon">👥</div>
-                <div class="stat-value" id="totalResponsables">0</div>
-                <div class="stat-label">Responsables</div>
-            </div>
-            <div class="stat-card success">
-                <div class="stat-icon">💰</div>
-                <div class="stat-value" id="valorTotal">$0</div>
-                <div class="stat-label">Valor Total</div>
-            </div>
-        </div>
+        
 
         <!-- Search and Filters -->
         <div class="search-section">
@@ -639,7 +620,6 @@
                             <th>Nombre</th>
                             <th>Marca</th>
                             <th>Modelo</th>
-                            <th>Valor</th>
                             <th>Responsable</th>
                             <th>Acciones</th>
                         </tr>
@@ -821,7 +801,6 @@
                     <td>${art.nombre}</td>
                     <td>${art.marca || 'N/A'}</td>
                     <td>${art.modelo || 'N/A'}</td>
-                    <td><strong>$${art.valor.toLocaleString('es-CO')}</strong></td>
                     <td>${art.responsable}</td>
                     <td>
                         <button class="btn btn-primary btn-sm" onclick="viewDetail('${art.placa}')">
@@ -889,10 +868,7 @@
                                 <div class="detail-label">Categoría</div>
                                 <div class="detail-value">${art.categoria}</div>
                             </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Valor</div>
-                                <div class="detail-value">$${art.valor.toLocaleString('es-CO')}</div>
-                            </div>
+                            
                             <div class="detail-item">
                                 <div class="detail-label">Fecha Adquisición</div>
                                 <div class="detail-value">${art.fecha_adquisicion || 'N/A'}</div>
@@ -950,14 +926,13 @@
         }
 
         function convertToCSV(data) {
-            const headers = ['Placa', 'Nombre', 'Marca', 'Modelo', 'Categoría', 'Valor', 'Fecha', 'Ubicación', 'Responsable'];
+            const headers = ['Placa', 'Nombre', 'Marca', 'Modelo', 'Categoría', 'Fecha', 'Ubicación', 'Responsable'];
             const rows = data.map(art => [
                 art.placa,
                 art.nombre,
                 art.marca || '',
                 art.modelo || '',
                 art.categoria,
-                art.valor,
                 art.fecha_adquisicion || '',
                 art.ubicacion,
                 art.responsable
