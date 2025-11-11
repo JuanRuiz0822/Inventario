@@ -4,8 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema Inventario SENA v3.0</title>
-    <style>
-        * {
+    
+
+<style>
+    
+
+* {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -13,7 +17,7 @@
 
         :root {
             --primary-color: #39A900;
-            --secondary-color: #00324D;
+            --secondary-color: #0e5176;
             --accent-color: #FF6B35;
             --bg-light: #F5F7FA;
             --text-dark: #2C3E50;
@@ -41,41 +45,61 @@
 
         /* Header */
         header {
-            background: linear-gradient(135deg, var(--secondary-color) 0%, #004D73 100%);
-            color: white;
-            padding: 30px 0;
-            margin-bottom: 30px;
-            box-shadow: var(--shadow);
+           background: var(--secondary-color);
+           padding: 40px 285px;
+           display: flex;
+           justify-content: space-between;
+           align-items: center;
         }
 
         .header-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
+           display: flex;
+           justify-content: space-between;
+           align-items: center;
+           width: 100%;
         }
 
         .logo-section {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
+          display: flex;
+          align-items: center;
+          gap: 15px; /* espacio entre el logo y el texto */
+        } 
+
 
         .logo-icon {
-            width: 50px;
-            height: 50px;
-            background: var(--primary-color);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            font-weight: bold;
+          width: 60px;             /* tamaño del recuadro */
+          height: 60px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          background: white;       /* opcional, si quieres fondo */
         }
+
+        .logo-icon img {
+          max-width: 80%;          /* ancho máximo de la imagen dentro del recuadro */
+          max-height: 80%;         /* altura máxima */
+          object-fit: contain;     /* mantiene proporción */
+          margin: auto;            /* centra la imagen */
+        }
+
+ 
+        .text-section h1 {
+          color: #FFFFFF;           /* Blanco puro */
+          font-size: 22px;
+          font-weight: 700;
+          margin: 0;
+          text-shadow: 1px 1px 3px rgba(0,0,0,0.4); /* mejora el contraste */
+        }
+
+        .text-section p {
+          color: #DDE6EB;           /* Gris claro, elegante y legible */
+          font-size: 14px;
+          margin: 0;
+          text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
 
         h1 {
             font-size: 28px;
@@ -196,21 +220,19 @@
             box-shadow: 0 0 0 3px rgba(57, 169, 0, 0.1);
         }
 
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
         .btn-primary {
             background: var(--primary-color);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
             color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-primary:hover {
+            background: #218838;
         }
 
         .btn-primary:hover {
@@ -220,12 +242,20 @@
         }
 
         .btn-secondary {
-            background: var(--secondary-color);
-            color: white;
+            background: var(--secondary-color); /* color de fondo */
+            color: white;                       /* color del texto */
+            border: 2px solid var(--secondary-color); /* borde del mismo color que el fondo */
+            padding: 15px 40px;                 /* tamaño del botón */
+            font-size: 16px;
+            border-radius: 8px;                 /* esquinas redondeadas */
+            cursor: pointer;
+            transition: background 0.3s, transform 0.3s;
         }
 
         .btn-secondary:hover {
-            background: #00243A;
+            background: #00475A;                 /* más oscuro al pasar el cursor */
+            border: 2px solid #00475A;          /* mantiene borde igual que fondo */
+            transform: translateY(-2px);
         }
 
         .btn-outline {
@@ -499,13 +529,21 @@
                 grid-template-columns: 1fr;
             }
 
-            .btn-actions {
-                width: 100%;
-            }
+        .btn-actions {
+           display: flex;
+           gap: 15px; /* espacio entre botones */
+           justify-content: flex-start;
+           flex-wrap: wrap;
+           }
 
-            .btn-actions button {
-                flex: 1;
-            }
+        .btn-actions button {
+          flex: 1; /* todos crecen de manera uniforme */
+          min-width: 200px; /* ancho mínimo más grande */
+          padding: 12px 35px; /* más espacio interno */
+          text-align: center;
+          font-size: 14px;
+           }
+
 
             table {
                 font-size: 12px;
@@ -534,25 +572,68 @@
             color: var(--danger);
             border-left: 4px solid var(--danger);
         }
+         
+        /* --- Ajuste general para los botones principales --- */
+        .btn-actions {
+           display: flex;
+           justify-content: flex-start;
+           align-items: center;
+           gap: 20px; /* espacio entre botones */
+           flex-wrap: wrap;
+           margin-top: 15px;
+        }
 
-       
-    </style>
+        .btn-actions button {
+           min-width: 220px !important;  /* ancho más amplio */
+           padding: 14px 35px !important; /* más espacio interno */
+           font-size: 15px;
+           font-weight: 600;
+           border-radius: 8px;
+           text-align: center;
+        }
+
+        #btnActualizar {
+           background-color: white; /* rojo */
+           color: black; /* texto blanco */
+        }
+
+        #btnActualizar:hover {
+           background-color: white; /* rojo más oscuro al pasar el mouse */
+        }
+
+
+        #loadMoreBtn {
+           padding: 16px 40px;  /* altura y ancho interno */
+           font-size: 16px;     /* tamaño de letra */
+           min-width: 220px;    /* ancho mínimo del botón */
+           border-radius: 10px; /* bordes redondeados */
+        }
+ 
+        .pagination-controls {
+           height: 60px;        /* altura del contenedor del botón */
+           display: flex;
+           align-items: center;
+        }
+
+        
+</style>
 </head>
 <body>
     <header>
-        <div class="header-content">
-            <div class="logo-section">
-                <div class="logo-icon">📦</div>
-                <div>
-                    <h1>Sistema de Inventario SENA</h1>
-                    <div class="subtitle">Gestión Inteligente de Activos v3.0</div>
-                </div>
-            </div>
-            <button class="btn btn-outline" onclick="refreshData()" style="color: rgb(0, 0, 0); border-color: white;">
-                🔄 Actualizar Datos
-            </button>
-        </div>
-    </header>
+  <div class="header-content">
+    <div class="logo-section">
+      <div class="logo-icon">
+        <img src="https://i.postimg.cc/cHpqyBX5/Logo-sena.jpg" alt="Logo del SENA">
+      </div>
+      <div class="text-section">
+        <h1>Sistema de Inventario de activos SENA</h1>
+        <p>Gestión Inteligente de Activos v3.0</p>
+      </div>
+    <!--</div>
+    <button id="btnActualizar" class="btn btn-primary"> ACTUALIZAR DATOS</button>
+  </div>-->
+</header>
+
 
     <div class="container">
         <!-- Alert Messages -->
@@ -618,7 +699,6 @@
                         <tr>
                             <th>Placa</th>
                             <th>Nombre</th>
-                            <th>Marca</th>
                             <th>Modelo</th>
                             <th>Responsable</th>
                             <th>Acciones</th>
@@ -635,9 +715,9 @@
                     Página <span id="currentPage">1</span> de <span id="totalPages">1</span>
                 </div>
                 <div class="pagination-controls">
-                    <button class="btn btn-outline btn-sm" onclick="previousPage()">← Anterior</button>
-                    <button class="btn btn-outline btn-sm" onclick="nextPage()">Siguiente →</button>
+                   <button class="btn btn-primary btn-sm" id="loadMoreBtn">Ver más</button>
                 </div>
+
             </div>
         </div>
     </div>
@@ -655,20 +735,29 @@
         </div>
     </div>
 
-    <script>
+     <script>
+        
         // Global variables
         let allArticulos = [];
         let filteredArticulos = [];
         let currentPage = 1;
-        const itemsPerPage = 50;
+        const itemsPerPage =10;
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            loadStats();
-            loadCategorias();
-            loadResponsables();
-            loadArticulos();
-        });
+        // Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadCategorias();
+    loadResponsables();
+    loadArticulos();
+
+    // ✅ Aquí dentro conectamos el botón una vez que existe en el DOM
+    document.getElementById('loadMoreBtn').addEventListener('click', () => {
+        currentPage++;
+        renderTable();
+    });
+});
+
 
         // Show alert
         function showAlert(message, type = 'success') {
@@ -753,6 +842,15 @@
             }
         }
 
+        // Función para refrescar datos al presionar el botón
+         async function refreshData() {
+             await loadStats();      // Actualiza las estadísticas
+             await loadArticulos();  // Carga los artículos y dispara el alert
+        } 
+
+        // Conectar el botón de "Actualizar Datos" a la función
+          document.getElementById('btnActualizar').addEventListener('click', refreshData);
+
         // Apply filters
         function applyFilters() {
             const placa = document.getElementById('searchPlaca').value.toLowerCase();
@@ -787,38 +885,52 @@
 
         // Render table
         function renderTable() {
-            const start = (currentPage - 1) * itemsPerPage;
-            const end = start + itemsPerPage;
-            const pageArticulos = filteredArticulos.slice(start, end);
+    const start = 0; // siempre empezamos desde el primero
+    const end = currentPage * itemsPerPage; // mostramos más según la página
+    const pageArticulos = filteredArticulos.slice(0, end);
 
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
 
-            pageArticulos.forEach(art => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td><span class="badge badge-info">${art.placa}</span></td>
-                    <td>${art.nombre}</td>
-                    <td>${art.marca || 'N/A'}</td>
-                    <td>${art.modelo || 'N/A'}</td>
-                    <td>${art.responsable}</td>
-                    <td>
-                        <button class="btn btn-primary btn-sm" onclick="viewDetail('${art.placa}')">
-                            👁️ Ver
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
+    pageArticulos.forEach(art => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><span class="badge badge-info">${art.placa}</span></td>
+            <td>${art.nombre}</td>
+            <td>${art.modelo || 'N/A'}</td>
+            <td>${art.responsable}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="viewDetail('${art.placa}')">
+                    👁️ Ver
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
 
-            // Update pagination info
-            document.getElementById('showingFrom').textContent = start + 1;
-            document.getElementById('showingTo').textContent = Math.min(end, filteredArticulos.length);
-            document.getElementById('totalResults').textContent = filteredArticulos.length;
-            document.getElementById('currentPage').textContent = currentPage;
-            document.getElementById('totalPages').textContent = Math.ceil(filteredArticulos.length / itemsPerPage);
-        }
+    // Actualizar info de la tabla
+    document.getElementById('showingFrom').textContent = 1;
+    document.getElementById('showingTo').textContent = Math.min(end, filteredArticulos.length);
+    document.getElementById('totalResults').textContent = filteredArticulos.length;
 
+     // Actualizar paginación
+    const totalPages = Math.ceil(filteredArticulos.length / itemsPerPage);
+    document.getElementById('currentPage').textContent = currentPage;
+    document.getElementById('totalPages').textContent = totalPages;
+
+    // Mostrar u ocultar botón "Ver más"
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    if (end >= filteredArticulos.length) {
+        loadMoreBtn.style.display = 'none';
+    } else {
+        loadMoreBtn.style.display = 'inline-block';
+    }
+}
+     document.getElementById('loadMoreBtn').addEventListener('click', () => {
+        currentPage++;
+        renderTable();
+    });
+ 
         // Pagination
         function previousPage() {
             if (currentPage > 1) {
@@ -856,10 +968,7 @@
                                 <div class="detail-label">Nombre</div>
                                 <div class="detail-value">${art.nombre}</div>
                             </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Marca</div>
-                                <div class="detail-value">${art.marca || 'N/A'}</div>
-                            </div>
+                            
                             <div class="detail-item">
                                 <div class="detail-label">Modelo</div>
                                 <div class="detail-value">${art.modelo || 'N/A'}</div>
@@ -926,11 +1035,10 @@
         }
 
         function convertToCSV(data) {
-            const headers = ['Placa', 'Nombre', 'Marca', 'Modelo', 'Categoría', 'Fecha', 'Ubicación', 'Responsable'];
+            const headers = ['Placa', 'Nombre', 'Modelo', 'Categoría', 'Fecha', 'Ubicación', 'Responsable'];
             const rows = data.map(art => [
                 art.placa,
                 art.nombre,
-                art.marca || '',
                 art.modelo || '',
                 art.categoria,
                 art.fecha_adquisicion || '',
@@ -940,7 +1048,8 @@
             
             return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
         }
-    </script>
+     </script>
+
 </body>
 </html>
 <!-- Prueba versión 1.6 -->
