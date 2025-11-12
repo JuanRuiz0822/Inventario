@@ -106,13 +106,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Función para refrescar datos al presionar el botón
-         async function refreshData() {
+        async function refreshData() {
              await loadStats();      // Actualiza las estadísticas
              await loadArticulos();  // Carga los artículos y dispara el alert
         } 
 
         // Conectar el botón de "Actualizar Datos" a la función
-          document.getElementById('btnActualizar').addEventListener('click', refreshData);
+        document.getElementById('btnActualizar').addEventListener('click', refreshData);
 
         // Apply filters
         function applyFilters() {
@@ -223,40 +223,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     const modalBody = document.getElementById('modalBody');
                     modalBody.innerHTML = `
                         <div class="detail-grid">
-                            <div class="detail-item">
-                                <div class="detail-label">Placa</div>
-                                <div class="detail-value">${art.placa}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Nombre</div>
-                                <div class="detail-value">${art.nombre}</div>
-                            </div>
-                            
-                            <div class="detail-item">
-                                <div class="detail-label">Modelo</div>
-                                <div class="detail-value">${art.modelo || 'N/A'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Categoría</div>
-                                <div class="detail-value">${art.categoria}</div>
-                            </div>
-                            
-                            <div class="detail-item">
-                                <div class="detail-label">Fecha Adquisición</div>
-                                <div class="detail-value">${art.fecha_adquisicion || 'N/A'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Ubicación</div>
-                                <div class="detail-value">${art.ubicacion}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Responsable</div>
-                                <div class="detail-value">${art.responsable}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Hoja de Origen</div>
-                                <div class="detail-value">${art.hoja}</div>
-                            </div>
+                            <div class="detail-item"><div class="detail-label">Placa</div><div class="detail-value">${art.placa}</div></div>
+                            <div class="detail-item"><div class="detail-label">Nombre</div><div class="detail-value">${art.nombre}</div></div>
+                            <div class="detail-item"><div class="detail-label">Modelo</div><div class="detail-value">${art.modelo || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Centro</div><div class="detail-value">${art.Centro || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Consec.</div><div class="detail-value">${art["Consec."] || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Desc.</div><div class="detail-value">${art.Desc || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Descripción Actual</div><div class="detail-value">${art["Descripción Actual"] || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Atributos</div><div class="detail-value">${art.Atributos || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Fecha Adquisición</div><div class="detail-value">${art["Fecha Adquisición"] || art.fecha_adquisicion || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Ubicación</div><div class="detail-value">${art.Ubicación || art.ubicacion || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Evidencias</div><div class="detail-value">${art.Evidencias || 'N/A'}</div></div>
+                            <div class="detail-item"><div class="detail-label">Origen</div><div class="detail-value">${art.Origen || 'N/A'}</div></div>
                         </div>
                     `;
                     document.getElementById('detailModal').style.display = 'block';
