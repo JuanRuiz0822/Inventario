@@ -207,29 +207,25 @@ def get_google_sheet_data():
                             return "Sin información"
 
                     articulo = {
-                        
                         "placa": placa,
                         "placa_normalizada": normaliza_placa(placa),
-                        "nombre": nombre,
-                        "descripcion": descripcion,
-                        "modelo": valor_o_vacio("Modelo", row, headers),
-                        "marca": marca,
-                        "categoria": descripcion or "Sin categoría",
-                        "valor": valor,
-                        "fecha_adquisicion": fecha,
-                        "ubicacion": valor_o_vacio("Ubicación", row, headers),
-                        "responsable": responsable,
-                        "hoja": sheet_name,
-                        "fila": row_idx,
                         "Centro": valor_o_vacio("Centro", row, headers),
+                        "Modelo": valor_o_vacio("Modelo", row, headers),
                         "Consec.": valor_o_vacio("Consec.", row, headers),
                         "Desc.": valor_o_vacio("Desc.", row, headers),
                         "Descripción Actual": valor_o_vacio("Descripción Actual", row, headers),
+                        "Placa": valor_o_vacio("Placa", row, headers),
                         "Atributos": valor_o_vacio("Atributos", row, headers),
                         "Fecha Adquisición": valor_o_vacio("Fecha Adquisición", row, headers),
+                        "Ubicación": valor_o_vacio("Ubicación", row, headers),
                         "Evidencias": valor_o_vacio("Evidencias", row, headers),
-                        "Origen": valor_o_vacio("Origen", row, headers),
+                        "Origen": valor_o_vacio("Origen", row, headers)
                     }
+                    # Después de llenar el diccionario articulo, añade:
+                    articulo['placa'] = articulo.get('Placa', '').strip()
+                    articulo['consec'] = articulo.get('Consec.', '').strip()
+                    articulo['responsable'] = articulo.get('Origen', '').strip()
+
 
                     articles.append(articulo)
                     total_rows_processed += 1

@@ -8,18 +8,20 @@
 </head>
 <body>
     <header>
-  <div class="header-content">
+<div class="header-content">
     <div class="logo-section">
-      <div class="logo-icon">
+        
+    <div class="logo-icon">
         <img src="https://i.postimg.cc/cHpqyBX5/Logo-sena.jpg" alt="Logo del SENA">
-      </div>
-      <div class="text-section">
+    </div>
+
+    <div class="text-section">
         <h1>Sistema  Inventario de Activos SENA</h1>
         <p>Gestión Inteligente de Activos v3.0</p>
-      </div>
+    </div>
     <!--</div>
     <button id="btnActualizar" class="btn btn-primary"> ACTUALIZAR DATOS</button>
-  </div>-->
+    </div>-->
 </header>
 
 
@@ -42,14 +44,8 @@
                     <input type="text" id="searchPlaca" placeholder="Ingrese número de placa">
                 </div>
                 <div class="input-group">
-                    <label for="searchNombre">Buscar por Descripción Actual</label>
-                    <input type="text" id="searchNombre" placeholder="Ingrese descripción del artículo">
-                </div>
-                <div class="input-group">
-                    <label for="filterCategoria">Categoría</label>
-                    <select id="filterCategoria">
-                        <option value="">Todas las categorías</option>
-                    </select>
+                    <label for="searchNombre">Buscar por Consecutivo</label>
+                    <input type="text" id="searchConsec" placeholder="Ingrese consecutivo">
                 </div>
                 <div class="input-group">
                     <label for="filterResponsable">Responsable</label>
@@ -57,6 +53,12 @@
                         <option value="">Todos los responsables</option>
                     </select>
                 </div>
+                <!--<div class="input-group">
+                    <label for="filterResponsable">Responsable</label>
+                    <select id="filterResponsable">
+                        <option value="">Todos los responsables</option>
+                    </select>
+                </div>-->
             </div>
 
             <div class="btn-actions">
@@ -103,7 +105,7 @@
                     Página <span id="currentPage">1</span> de <span id="totalPages">1</span>
                 </div>
                 <div class="pagination-controls">
-                   <button class="btn btn-primary btn-sm" id="loadMoreBtn">Ver más</button>
+                    <button class="btn btn-primary btn-sm" id="loadMoreBtn">Ver más</button>
                 </div>
 
             </div>
@@ -123,7 +125,7 @@
         </div>
     </div>
 
-     
+
 <script src="/static/scripts.js"></script>
 </body>
 </html>

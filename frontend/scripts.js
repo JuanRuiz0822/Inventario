@@ -116,30 +116,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Apply filters
         function applyFilters() {
-            const placa = document.getElementById('searchPlaca').value.toLowerCase();
-            const nombre = document.getElementById('searchNombre').value.toLowerCase();
-            const categoria = document.getElementById('filterCategoria').value;
-            const responsable = document.getElementById('filterResponsable').value;
+    // Captura los valores desde los campos de búsqueda/filtro
+    const placa = document.getElementById('searchPlaca').value.toLowerCase().trim();
+    const consecutivo = document.getElementById('searchConsec').value.toLowerCase().trim();
+    const responsable = document.getElementById('filterResponsable').value.toLowerCase().trim();
 
-            filteredArticulos = allArticulos.filter(art => {
-                const matchPlaca = !placa || art.placa.toLowerCase().includes(placa);
-                const matchNombre = !nombre || art.nombre.toLowerCase().includes(nombre);
-                const matchCategoria = !categoria || art.categoria === categoria;
-                const matchResponsable = !responsable || art.responsable === responsable;
-                
-                return matchPlaca && matchNombre && matchCategoria && matchResponsable;
-            });
+    filteredArticulos = allArticulos.filter(art => {
+        const valorPlaca = (art.placa || '').toLowerCase();
+        const valorConsec = (art.consec || '').toLowerCase();
+        const valorResponsable = (art.responsable || '').toLowerCase().trim();
 
-            currentPage = 1;
-            renderTable();
-            showAlert(`Se encontraron ${filteredArticulos.length} resultados`, 'success');
-        }
+
+        const matchPlaca = !placa || valorPlaca.includes(placa);
+        const matchConsec = !consecutivo || valorConsec.includes(consecutivo);
+        const matchResponsable = !responsable || valorResponsable === responsable;
+
+        return matchPlaca && matchConsec && matchResponsable;
+    });
+
+    currentPage = 1;
+    renderTable();
+    showAlert(`Se encontraron ${filteredArticulos.length} resultados`, 'success');
+}
+
 
         // Clear filters
         function clearFilters() {
             document.getElementById('searchPlaca').value = '';
-            document.getElementById('searchNombre').value = '';
-            document.getElementById('filterCategoria').value = '';
+            document.getElementById('searchConsec').value = '';
             document.getElementById('filterResponsable').value = '';
             filteredArticulos = [...allArticulos];
             currentPage = 1;
@@ -158,12 +162,12 @@ document.addEventListener('DOMContentLoaded', function() {
     pageArticulos.forEach(art => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><span class="badge badge-info">${art.placa}</span></td>
-            <td>${art.nombre}</td>
-            <td>${art.modelo || 'N/A'}</td>
-            <td>${art.responsable}</td>
-            <td>
-                <button class="btn btn-primary btn-sm" onclick="viewDetail('${art.placa}')">
+            <td><span class="badge badge-info">${art.placa || art["Placa"] || ''}</span>
+<td>${art.nombre || art["Descripción Actual"] || art["Desc."] || ''}</td>
+<td>${art.modelo || art["Modelo"] || 'N/A'}</td>
+<td>${art.responsable || art["Responsable"] || art["Origen"] || 'Sin responsable'}</td>
+
+                <button class="btn btn-primary btn-sm" onclick="viewDetail('${art.placa ||''}')">
                     👁️ Ver
                 </button>
             </td>
@@ -223,20 +227,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     const modalBody = document.getElementById('modalBody');
                     modalBody.innerHTML = `
                         <div class="detail-grid">
-                            <div class="detail-item"><div class="detail-label">Placa</div><div class="detail-value">${art.placa}</div></div>
-                            <div class="detail-item"><div class="detail-label">Nombre</div><div class="detail-value">${art.nombre}</div></div>
-                            <div class="detail-item"><div class="detail-label">Modelo</div><div class="detail-value">${art.modelo || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Centro</div><div class="detail-value">${art.Centro || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Consec.</div><div class="detail-value">${art["Consec."] || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Desc.</div><div class="detail-value">${art.Desc || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Descripción Actual</div><div class="detail-value">${art["Descripción Actual"] || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Atributos</div><div class="detail-value">${art.Atributos || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Fecha Adquisición</div><div class="detail-value">${art["Fecha Adquisición"] || art.fecha_adquisicion || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Ubicación</div><div class="detail-value">${art.Ubicación || art.ubicacion || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Evidencias</div><div class="detail-value">${art.Evidencias || 'N/A'}</div></div>
-                            <div class="detail-item"><div class="detail-label">Origen</div><div class="detail-value">${art.Origen || 'N/A'}</div></div>
-                        </div>
-                    `;
+            <div class="detail-item"><div class="detail-label">Placa</div><div class="detail-value">${art.placa || art["Placa"] || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Modelo</div><div class="detail-value">${art.modelo || art["Modelo"] || 'N/A'}</div></div>
+            <div class="detail-item"><div class="detail-label">Centro</div><div class="detail-value">${art.Centro || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Consec.</div><div class="detail-value">${art.consec || art["Consec."] || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Desc.</div><div class="detail-value">${art["Desc."] || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Descripción Actual</div><div class="detail-value">${art["Descripción Actual"] || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Atributos</div><div class="detail-value">${art.Atributos || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Fecha Adquisición</div><div class="detail-value">${art["Fecha Adquisición"] || art.fecha_adquisicion || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Ubicación</div><div class="detail-value">${art.Ubicación || art.ubicacion || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Evidencias</div><div class="detail-value">${art.Evidencias || ''}</div></div>
+            <div class="detail-item"><div class="detail-label">Origen</div><div class="detail-value">${art.Origen || art.responsable || art["Responsable"] || ''}</div></div>
+        </div>
+`;
                     document.getElementById('detailModal').style.display = 'block';
                 }
             } catch (error) {
@@ -276,17 +279,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function convertToCSV(data) {
-            const headers = ['Placa', 'Nombre', 'Modelo', 'Categoría', 'Fecha', 'Ubicación', 'Responsable'];
+            const headers = ['Centro','Placa', 'Modelo', 'Fecha Adquisición','Ubicación','Consec.','Desc.','Descripción Actual',
+                'Atributos','Evidencias','Origen'
+            ];
             const rows = data.map(art => [
-                art.placa,
-                art.nombre,
-                art.modelo || '',
-                art.categoria,
-                art.fecha_adquisicion || '',
-                art.ubicacion,
-                art.responsable
+                art["Centro"] || '',
+                art["Placa"] || '',
+                art["Modelo"] || '',
+                art["Fecha Adquisición"] || '',
+                art["Ubicación"] || '',
+                art["Consec."] || '',
+                art["Desc."] || '',
+                art["Descripción Actual"] || '',
+                art["Atributos"] || '',
+                art["Evidencias"] || '',
+                art["Origen"] || ''
             ]);
             
-            return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-        }
-     
+            const BOM = '\uFEFF';
+                return BOM + [headers, ...rows].map(
+                    row => row.map(cell => `"${cell}"`).join(';')
+                ).join('\n');
+            }
