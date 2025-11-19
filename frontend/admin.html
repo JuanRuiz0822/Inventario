@@ -68,6 +68,30 @@
             </div>
         </div>
 
+        <div class="search-section">
+    <div class="search-header">
+        <h2 class="search-title">📅 Filtrar por Fechas</h2>
+    </div>
+
+    <div class="filters-grid">
+        <div class="input-group">
+            <label for="fechaInicio">Fecha inicial</label>
+            <input type="date" id="fechaInicio">
+        </div>
+
+        <div class="input-group">
+            <label for="fechaFin">Fecha final</label>
+            <input type="date" id="fechaFin">
+        </div>
+    </div>
+
+    <div class="btn-actions">
+        <button class="btn btn-primary" onclick="loadArticulosConFiltros(1)">🔍 Buscar por Fechas</button>
+        <button class="btn btn-outline" onclick="clearDateFilter()">🗑️ Limpiar Fechas</button>
+
+    </div>
+</div>
+
         <!-- Loading -->
         <div class="loading" id="loading">
             <div class="spinner"></div>
