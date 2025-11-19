@@ -12,13 +12,51 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadCategorias();
     loadResponsables();
-    loadArticulos();
+    loadArticulosConFiltros(1);
 
     // ✅ Aquí dentro conectamos el botón una vez que existe en el DOM
-    document.getElementById('loadMoreBtn').addEventListener('click', () => {
-        currentPage++;
+    async function loadMoreArticulos() {
+    const nextPage = currentPage + 1;
+    const placa = document.getElementById('searchPlaca').value.trim();
+    const consecutivo = document.getElementById('searchConsec').value.trim();
+    const responsable = document.getElementById('filterResponsable').value.trim();
+    const fechaInicio = document.getElementById('fechaInicio').value;
+    const fechaFin = document.getElementById('fechaFin').value;
+
+    const params = new URLSearchParams();
+    params.append('page', nextPage);
+    params.append('limit', itemsPerPage);
+    if (placa) params.append('placa', placa);
+    if (consecutivo) params.append('consecutivo', consecutivo);
+    if (responsable) params.append('responsable', responsable);
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    try {
+        const response = await fetch(`/api/inventario/consulta?${params.toString()}`);
+        const data = await response.json();
+
+        allArticulos = allArticulos.concat(data.articulos);
+        filteredArticulos = [...allArticulos];
+        currentPage = nextPage;
         renderTable();
-    });
+
+        if (currentPage >= data.total_pages) {
+            document.getElementById('loadMoreBtn').style.display = 'none';
+        } else {
+            document.getElementById('loadMoreBtn').style.display = 'inline-block';
+        }
+
+    } catch (error) {
+        console.error('Error cargando más artículos:', error);
+        showAlert('Error al cargar más artículos', 'error');
+    }
+}
+
+document.getElementById('loadMoreBtn').addEventListener('click', () => {
+    loadMoreArticulos();
+});
+
 });
 
 
@@ -84,60 +122,83 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Load articulos
-        async function loadArticulos() {
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('tableSection').style.display = 'none';
-            
-            try {
-                const response = await fetch('/api/articulos');
-                const data = await response.json();
-                allArticulos = data.articulos;
-                filteredArticulos = [...allArticulos];
-                currentPage = 1;
-                renderTable();
-                showAlert('Datos cargados exitosamente', 'success');
-            } catch (error) {
-                console.error('Error loading articulos:', error);
-                showAlert('Error al cargar los datos', 'error');
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('tableSection').style.display = 'block';
-            }
+        // Asumiendo variables globales y itemsPerPage definidas ya
+
+async function loadArticulosConFiltros(page = 1) {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('tableSection').style.display = 'none';
+
+    const placa = document.getElementById('searchPlaca').value.trim();
+    const consecutivo = document.getElementById('searchConsec').value.trim();
+    const responsable = document.getElementById('filterResponsable').value.trim();
+    const fechaInicio = document.getElementById('fechaInicio').value;
+    const fechaFin = document.getElementById('fechaFin').value;
+
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('limit', itemsPerPage);
+
+    if (placa) params.append('placa', placa);
+    if (consecutivo) params.append('consecutivo', consecutivo);
+    if (responsable) params.append('responsable', responsable);
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    try {
+        const response = await fetch(`/api/inventario/consulta?${params.toString()}`);
+        const data = await response.json();
+
+        if (page === 1) {
+            allArticulos = data.articulos;
+        } else {
+            allArticulos = allArticulos.concat(data.articulos);
         }
 
-        // Función para refrescar datos al presionar el botón
-        async function refreshData() {
-             await loadStats();      // Actualiza las estadísticas
-             await loadArticulos();  // Carga los artículos y dispara el alert
-        } 
+        filteredArticulos = [...allArticulos];
+        currentPage = page;
+        renderTable();
 
-        // Conectar el botón de "Actualizar Datos" a la función
-        document.getElementById('btnActualizar').addEventListener('click', refreshData);
+        showAlert(`Se encontraron ${data.total} resultados`, 'success');
+        document.getElementById('currentPage').textContent = currentPage;
+        document.getElementById('totalPages').textContent = data.total_pages || 1;
 
-        // Apply filters
-        function applyFilters() {
-    // Captura los valores desde los campos de búsqueda/filtro
-    const placa = document.getElementById('searchPlaca').value.toLowerCase().trim();
-    const consecutivo = document.getElementById('searchConsec').value.toLowerCase().trim();
-    const responsable = document.getElementById('filterResponsable').value.toLowerCase().trim();
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        if (currentPage >= data.total_pages) {
+            loadMoreBtn.style.display = 'none';
+        } else {
+            loadMoreBtn.style.display = 'inline-block';
+        }
 
-    filteredArticulos = allArticulos.filter(art => {
-        const valorPlaca = (art.placa || '').toLowerCase();
-        const valorConsec = (art.consec || '').toLowerCase();
-        const valorResponsable = (art.responsable || '').toLowerCase().trim();
-
-
-        const matchPlaca = !placa || valorPlaca.includes(placa);
-        const matchConsec = !consecutivo || valorConsec.includes(consecutivo);
-        const matchResponsable = !responsable || valorResponsable === responsable;
-
-        return matchPlaca && matchConsec && matchResponsable;
-    });
-
-    currentPage = 1;
-    renderTable();
-    showAlert(`Se encontraron ${filteredArticulos.length} resultados`, 'success');
+    } catch (error) {
+        console.error('Error cargando artículos con filtros:', error);
+        showAlert('Error al cargar los datos', 'error');
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('tableSection').style.display = 'block';
+    }
 }
+
+function clearDateFilter() {
+    document.getElementById('fechaInicio').value = '';
+    document.getElementById('fechaFin').value = '';
+    loadArticulosConFiltros(1);
+}
+
+// Botón buscar usa esta función con página 1
+document.querySelector('.btn.btn-primary').addEventListener('click', () => {
+    loadArticulosConFiltros(1);
+});
+
+// Botón limpiar -> limpia inputs y carga sin filtros
+document.querySelector('.btn.btn-outline').addEventListener('click', () => {
+    document.getElementById('searchPlaca').value = '';
+    document.getElementById('searchConsec').value = '';
+    document.getElementById('filterResponsable').value = '';
+    document.getElementById('fechaInicio').value = '';
+    document.getElementById('fechaFin').value = '';
+    loadArticulosConFiltros(1);
+});
+
 
 
         // Clear filters
@@ -152,8 +213,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Render table
         function renderTable() {
-    const start = 0; // siempre empezamos desde el primero
-    const end = currentPage * itemsPerPage; // mostramos más según la página
+    const start = 0; // Empezar desde el primero
+    const end = currentPage * itemsPerPage;
     const pageArticulos = filteredArticulos.slice(0, end);
 
     const tbody = document.getElementById('tableBody');
@@ -162,12 +223,12 @@ document.addEventListener('DOMContentLoaded', function() {
     pageArticulos.forEach(art => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><span class="badge badge-info">${art.placa || art["Placa"] || ''}</span>
-<td>${art.nombre || art["Descripción Actual"] || art["Desc."] || ''}</td>
-<td>${art.modelo || art["Modelo"] || 'N/A'}</td>
-<td>${art.responsable || art["Responsable"] || art["Origen"] || 'Sin responsable'}</td>
-
-                <button class="btn btn-primary btn-sm" onclick="viewDetail('${art.placa ||''}')">
+            <td><span class="badge badge-info">${art.placa || art["Placa"] || ''}</span></td>
+            <td>${art.nombre || art["Descripción Actual"] || art["Desc."] || ''}</td>
+            <td>${art.modelo || art["Modelo"] || 'N/A'}</td>
+            <td>${art.responsable || art["Responsable"] || art["Origen"] || 'Sin responsable'}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="viewDetail('${art.placa || ''}')">
                     👁️ Ver
                 </button>
             </td>
@@ -175,28 +236,62 @@ document.addEventListener('DOMContentLoaded', function() {
         tbody.appendChild(row);
     });
 
-    // Actualizar info de la tabla
     document.getElementById('showingFrom').textContent = 1;
     document.getElementById('showingTo').textContent = Math.min(end, filteredArticulos.length);
     document.getElementById('totalResults').textContent = filteredArticulos.length;
 
-     // Actualizar paginación
     const totalPages = Math.ceil(filteredArticulos.length / itemsPerPage);
     document.getElementById('currentPage').textContent = currentPage;
     document.getElementById('totalPages').textContent = totalPages;
 
-    // Mostrar u ocultar botón "Ver más"
     const loadMoreBtn = document.getElementById('loadMoreBtn');
-    if (end >= filteredArticulos.length) {
+    if (currentPage >= totalPages) {
         loadMoreBtn.style.display = 'none';
     } else {
         loadMoreBtn.style.display = 'inline-block';
     }
 }
-     document.getElementById('loadMoreBtn').addEventListener('click', () => {
-        currentPage++;
+
+    document.getElementById('loadMoreBtn').addEventListener('click', async () => {
+    currentPage++;
+    const placa = document.getElementById('searchPlaca').value.trim();
+    const consecutivo = document.getElementById('searchConsec').value.trim();
+    const responsable = document.getElementById('filterResponsable').value.trim();
+    const fechaInicio = document.getElementById('fechaInicio').value;
+    const fechaFin = document.getElementById('fechaFin').value;
+
+    const params = new URLSearchParams();
+    params.append('page', currentPage);
+    params.append('limit', itemsPerPage);
+    if (placa) params.append('placa', placa);
+    if (consecutivo) params.append('consecutivo', consecutivo);
+    if (responsable) params.append('responsable', responsable);
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    try {
+        const response = await fetch(`/api/inventario/consulta?${params.toString()}`);
+        const data = await response.json();
+
+        allArticulos = allArticulos.concat(data.articulos);
+        filteredArticulos = [...allArticulos];
+
         renderTable();
-    });
+
+        document.getElementById('currentPage').textContent = currentPage;
+        document.getElementById('totalPages').textContent = data.total_pages || 1;
+
+        if (currentPage >= data.total_pages) {
+            document.getElementById('loadMoreBtn').style.display = 'none';
+        } else {
+            document.getElementById('loadMoreBtn').style.display = 'inline-block';
+        }
+    } catch (error) {
+        console.error('Error cargando más artículos:', error);
+        showAlert('Error al cargar más artículos', 'error');
+    }
+});
+
  
         // Pagination
         function previousPage() {

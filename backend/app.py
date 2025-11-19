@@ -303,17 +303,64 @@ async def api_articulos():
 @app.get("/api/inventario/consulta")
 async def consulta_inventario(
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=500)
+    limit: int = Query(50, ge=1, le=500),
+    placa: str = None,
+    consecutivo: str = None,
+    responsable: str = None,
+    fecha_inicio: str = None,
+    fecha_fin: str = None
 ):
-    """Consulta paginada del inventario"""
+    # Utilizar cache para no repetir llamadas a Google Sheets
+    global _cache
+    if _cache is None:
+        _cache = get_google_sheet_data()
 
-    articulos = get_google_sheet_data()
-    total = len(articulos)
+    placa_norm = placa.upper() if placa else None
+    consecutivo_norm = consecutivo.upper() if consecutivo else None
+    resp_norm = responsable.upper() if responsable else None
+
+    # Convertir a datetime solo si se reciben fechas
+    fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d") if fecha_inicio else datetime.min
+    fecha_fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d") if fecha_fin else datetime.max
+
+    def filtro(art):
+        if fecha_inicio or fecha_fin:
+            fecha_art_str = art.get("Fecha Adquisición", "")
+            if not fecha_art_str:
+                return False
+
+            try:
+                # Priorizar formato dd/mm/yyyy (ver tus datos)
+                fecha_art = datetime.strptime(fecha_art_str.split("T")[0], "%d/%m/%Y")
+            except ValueError:
+                try:
+                    # Intentar formato ISO yyyy-mm-dd
+                    fecha_art = datetime.strptime(fecha_art_str.split("T")[0], "%Y-%m-%d")
+                except ValueError:
+                    return False
+
+            if fecha_art < fecha_inicio_dt or fecha_art > fecha_fin_dt:
+                return False
+
+        if placa_norm and placa_norm not in art.get("placa", "").upper():
+            return False
+
+        if consecutivo_norm and consecutivo_norm not in art.get("consec", "").upper():
+            return False
+
+        if resp_norm and resp_norm != art.get("responsable", "").upper().strip():
+            return False
+
+        return True
+
+    articulos_filtrados = list(filter(filtro, _cache))
+
+    total = len(articulos_filtrados)
     start = (page - 1) * limit
     end = start + limit
 
     return {
-        "articulos": articulos[start:end],
+        "articulos": articulos_filtrados[start:end],
         "total": total,
         "page": page,
         "limit": limit,
