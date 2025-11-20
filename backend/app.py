@@ -300,6 +300,8 @@ async def api_articulos():
     return {"articulos": _cache, "total": len(_cache)}
 
 
+from fastapi import Query
+
 @app.get("/api/inventario/consulta")
 async def consulta_inventario(
     page: int = Query(1, ge=1),
@@ -308,9 +310,9 @@ async def consulta_inventario(
     consecutivo: str = None,
     responsable: str = None,
     fecha_inicio: str = None,
-    fecha_fin: str = None
+    fecha_fin: str = None,
+    exportar_todo: bool = Query(False)  # <-- Nuevo parámetro
 ):
-    # Utilizar cache para no repetir llamadas a Google Sheets
     global _cache
     if _cache is None:
         _cache = get_google_sheet_data()
@@ -319,9 +321,12 @@ async def consulta_inventario(
     consecutivo_norm = consecutivo.upper() if consecutivo else None
     resp_norm = responsable.upper() if responsable else None
 
-    # Convertir a datetime solo si se reciben fechas
-    fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d") if fecha_inicio else datetime.min
-    fecha_fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d") if fecha_fin else datetime.max
+    fecha_inicio_dt = (
+        datetime.strptime(fecha_inicio, "%Y-%m-%d") if fecha_inicio else datetime.min
+    )
+    fecha_fin_dt = (
+        datetime.strptime(fecha_fin, "%Y-%m-%d") if fecha_fin else datetime.max
+    )
 
     def filtro(art):
         if fecha_inicio or fecha_fin:
@@ -330,12 +335,14 @@ async def consulta_inventario(
                 return False
 
             try:
-                # Priorizar formato dd/mm/yyyy (ver tus datos)
-                fecha_art = datetime.strptime(fecha_art_str.split("T")[0], "%d/%m/%Y")
+                fecha_art = datetime.strptime(
+                    fecha_art_str.split("T")[0], "%d/%m/%Y"
+                )
             except ValueError:
                 try:
-                    # Intentar formato ISO yyyy-mm-dd
-                    fecha_art = datetime.strptime(fecha_art_str.split("T")[0], "%Y-%m-%d")
+                    fecha_art = datetime.strptime(
+                        fecha_art_str.split("T")[0], "%Y-%m-%d"
+                    )
                 except ValueError:
                     return False
 
@@ -354,8 +361,19 @@ async def consulta_inventario(
         return True
 
     articulos_filtrados = list(filter(filtro, _cache))
-
     total = len(articulos_filtrados)
+
+    # Si exportar_todo == True, devuelve todo SIN paginar
+    if exportar_todo:
+        return {
+            "articulos": articulos_filtrados,
+            "total": total,
+            "page": 1,
+            "limit": total,
+            "total_pages": 1,
+        }
+
+    # Comportamiento normal paginado
     start = (page - 1) * limit
     end = start + limit
 
@@ -364,7 +382,7 @@ async def consulta_inventario(
         "total": total,
         "page": page,
         "limit": limit,
-        "total_pages": (total + limit - 1) // limit
+        "total_pages": (total + limit - 1) // limit,
     }
 
 
