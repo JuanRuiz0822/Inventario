@@ -396,3 +396,5 @@ document.querySelector('.btn.btn-outline').addEventListener('click', () => {
                     row => row.map(cell => `"${cell}"`).join(';')
                 ).join('\n');
             }
+
+            /*cambios 1.12*/
