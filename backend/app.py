@@ -1,5 +1,4 @@
-
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,25 +43,19 @@ except Exception as e:
 _cache = None
 _cache_timestamp = None
 
-
 def normaliza_texto(texto):
-    """Normaliza texto para comparaciones"""
     if not texto:
         return ""
     return str(texto).strip().upper()
 
-
 def normaliza_placa(placa):
-    """Normaliza placas eliminando espacios, guiones y ceros iniciales"""
     if not placa:
         return ""
     placa_norm = str(placa).replace(" ", "").replace("-", "").replace("_", "")
     placa_norm = placa_norm.strip().lstrip("0").upper()
     return placa_norm if placa_norm else "0"
 
-
 def detectar_columna(headers, palabras_clave):
-    """Detecta índice de columna basándose en palabras clave"""
     headers_lower = [h.lower().strip() for h in headers]
     for idx, header in enumerate(headers_lower):
         for palabra in palabras_clave:
@@ -70,14 +63,8 @@ def detectar_columna(headers, palabras_clave):
                 return idx
     return None
 
-
 def get_google_sheet_data():
-    """
-    Obtiene datos de Google Sheets con mapeo inteligente de columnas
-    y validación robusta de datos
-    """
     try:
-        # Cargar variables de entorno
         load_dotenv()
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
@@ -87,8 +74,7 @@ def get_google_sheet_data():
             return [{"id": "ERROR", "placa": "ERROR", "nombre": "GOOGLE_SHEET_ID no configurado"}]
 
         if not os.path.exists(creds_path):
-            logger.error(
-                f"Archivo de credenciales no encontrado: {creds_path}")
+            logger.error(f"Archivo de credenciales no encontrado: {creds_path}")
             return [{"id": "ERROR", "placa": "ERROR", "nombre": "Credenciales no encontradas"}]
 
         logger.info("Conectando a Google Sheets...")
@@ -97,8 +83,8 @@ def get_google_sheet_data():
             "https://www.googleapis.com/auth/spreadsheets.readonly",
             "https://www.googleapis.com/auth/drive.readonly"
         ]
-        creds = Credentials.from_service_account_file(
-            creds_path, scopes=scopes)
+
+        creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
         client = gspread.authorize(creds)
         sheet = client.open_by_key(sheet_id)
 
@@ -108,22 +94,18 @@ def get_google_sheet_data():
         total_sheets = 0
         total_rows_processed = 0
 
-        # Procesar cada hoja
         for ws in sheet.worksheets():
             total_sheets += 1
             sheet_name = ws.title
 
             try:
                 rows = ws.get_all_values()
-
                 if len(rows) <= 1:
-                    logger.warning(
-                        f"Hoja '{sheet_name}' vacía o solo con encabezados")
+                    logger.warning(f"Hoja '{sheet_name}' vacía o solo con encabezados")
                     continue
 
                 headers = rows[0]
-                logger.info(
-                    f"Procesando hoja: '{sheet_name}' ({len(rows) - 1} filas)")
+                logger.info(f"Procesando hoja: '{sheet_name}' ({len(rows) - 1} filas)")
 
                 col_map = {
                     "placa": detectar_columna(headers, ["placa", "código", "codigo", "id", "identificador"]),
@@ -136,14 +118,10 @@ def get_google_sheet_data():
                     "responsable": detectar_columna(headers, ["responsable", "responsable actual", "origen", "custodio", "encargado"])
                 }
 
-                mapeo_log = {
-                    k: headers[v] if v is not None else "N/A" for k, v in col_map.items()}
-                logger.info(
-                    f"Mapeo de columnas para '{sheet_name}': {mapeo_log}")
+                mapeo_log = {k: headers[v] if v is not None else "N/A" for k, v in col_map.items()}
+                logger.info(f"Mapeo de columnas para '{sheet_name}': {mapeo_log}")
 
                 for row_idx, row in enumerate(rows[1:], start=2):
-                # Asegurar que la fila tenga suficientes columnas
-
                     while len(row) < len(headers):
                         row.append("")
 
@@ -155,12 +133,9 @@ def get_google_sheet_data():
                     if not placa:
                         continue
 
-                    descripcion = row[col_map["descripcion"]].strip() if col_map.get(
-                        "descripcion") is not None and col_map["descripcion"] < len(row) else ""
-                    marca = row[col_map["marca"]].strip() if col_map.get(
-                        "marca") is not None and col_map["marca"] < len(row) else ""
-                    modelo = row[col_map["modelo"]].strip() if col_map.get(
-                        "modelo") is not None and col_map["modelo"] < len(row) else ""
+                    descripcion = row[col_map["descripcion"]].strip() if col_map.get("descripcion") is not None and col_map["descripcion"] < len(row) else ""
+                    marca = row[col_map["marca"]].strip() if col_map.get("marca") is not None and col_map["marca"] < len(row) else ""
+                    modelo = row[col_map["modelo"]].strip() if col_map.get("modelo") is not None and col_map["modelo"] < len(row) else ""
 
                     nombre_parts = []
                     if descripcion and descripcion.upper() not in ["NA", "N/A", "N.A.", ""]:
@@ -170,13 +145,11 @@ def get_google_sheet_data():
                     if modelo and modelo.upper() not in ["NA", "N/A", "N.A.", "", "SIN MODELO"]:
                         nombre_parts.append(modelo)
 
-                    nombre = " ".join(
-                        nombre_parts) if nombre_parts else f"Artículo {placa}"
+                    nombre = " ".join(nombre_parts) if nombre_parts else f"Artículo {placa}"
 
                     valor = 0.0
                     if col_map.get("valor") is not None and col_map["valor"] < len(row):
-                        valor_str = re.sub(
-                            r"[^0-9.]", "", row[col_map["valor"]])
+                        valor_str = re.sub(r"[^0-9.]", "", row[col_map["valor"]])
                         try:
                             valor = float(valor_str) if valor_str else 0.0
                         except Exception:
@@ -221,11 +194,10 @@ def get_google_sheet_data():
                         "Evidencias": valor_o_vacio("Evidencias", row, headers),
                         "Origen": valor_o_vacio("Origen", row, headers)
                     }
-                    # Después de llenar el diccionario articulo, añade:
-                    articulo['placa'] = articulo.get('Placa', '').strip()
-                    articulo['consec'] = articulo.get('Consec.', '').strip()
-                    articulo['responsable'] = articulo.get('Origen', '').strip()
 
+                    articulo["placa"] = articulo.get("Placa", "").strip()
+                    articulo["consec"] = articulo.get("Consec.", "").strip()
+                    articulo["responsable"] = articulo.get("Origen", "").strip()
 
                     articles.append(articulo)
                     total_rows_processed += 1
@@ -234,8 +206,7 @@ def get_google_sheet_data():
                 logger.error(f"Error procesando hoja '{sheet_name}': {e}")
                 continue
 
-        logger.info(
-            f"✓ Procesamiento completado: {total_rows_processed} artículos de {total_sheets} hojas")
+        logger.info(f"✓ Procesamiento completado: {total_rows_processed} artículos de {total_sheets} hojas")
 
         if not articles:
             return [{"id": "EMPTY", "placa": "EMPTY", "nombre": "No se encontraron artículos"}]
@@ -243,30 +214,25 @@ def get_google_sheet_data():
         return articles
 
     except gspread.exceptions.SpreadsheetNotFound:
-        logger.error(
-            "Google Sheet no encontrado. Verifica el ID y los permisos.")
+        logger.error("Google Sheet no encontrado. Verifica el ID y los permisos.")
         return [{"id": "ERROR", "placa": "ERROR", "nombre": "Hoja no encontrada o sin permisos"}]
 
     except Exception as e:
         logger.error(f"Error general: {type(e).__name__}: {e}")
         return [{"id": "ERROR", "placa": "ERROR", "nombre": f"Error: {str(e)}"}]
 
-
 @app.on_event("startup")
 async def startup_event():
-    """Evento de inicio: cargar cache inicial"""
-
     global _cache, _cache_timestamp
     logger.info("Iniciando aplicación...")
     _cache = get_google_sheet_data()
     _cache_timestamp = datetime.now()
     logger.info(f"Cache inicial cargado: {len(_cache)} artículos")
 
-
+# ========= RUTA RAÍZ =========
 @app.get("/")
 async def root():
     """Ruta raíz - retorna el frontend"""
-
     try:
         return FileResponse("../frontend/admin.html")
     except Exception:
@@ -276,10 +242,113 @@ async def root():
             "timestamp": datetime.now().isoformat()
         }
 
+# ========= ENDPOINTS CRUD =========
+@app.post("/api/inventario/crear")
+async def crear_articulo(articulo: dict = Body(...)):
+    responsable = articulo.get("responsable") or articulo.get("Origen")
+    if not responsable:
+        raise HTTPException(400, "Falta campo 'responsable' o 'Origen'.")
+    load_dotenv()
+    sheet_id = os.getenv("GOOGLE_SHEET_ID")
+    creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key(sheet_id)
+    try:
+        ws = sheet.worksheet(responsable)
+    except Exception:
+        ws = sheet.add_worksheet(title=responsable, rows="1000", cols="20")
+    row = [
+        articulo.get("Centro", ""),
+        articulo.get("Modelo", ""),
+        articulo.get("Consec.", ""),
+        articulo.get("Desc", articulo.get("Desc.", "")),
+        articulo.get("Descripción Actual", ""),
+        articulo.get("Placa", ""),
+        articulo.get("Atributos", ""),
+        articulo.get("Fecha Adquisición", ""),
+        articulo.get("Ubicación", ""),
+        articulo.get("Evidencias", ""),
+        articulo.get("Origen", responsable)
+    ]
+    ws.append_row(row)
+    global _cache, _cache_timestamp
+    _cache = get_google_sheet_data()
+    _cache_timestamp = datetime.now()
+    return {"message": "Artículo creado correctamente"}
 
+@app.put("/api/inventario/{placa}/editar")
+async def editar_articulo(placa: str, datos_actualizados: dict = Body(...)):
+    load_dotenv()
+    sheet_id = os.getenv("GOOGLE_SHEET_ID")
+    creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key(sheet_id)
+    encontrado = False
+    for ws in sheet.worksheets():
+        rows = ws.get_all_values()
+        headers = rows[0]
+        for idx, row in enumerate(rows[1:], start=2):
+            if (row[headers.index("Placa")] if "Placa" in headers else "").strip() == placa:
+                new_row = [
+                    datos_actualizados.get("Centro", row[headers.index("Centro")] if "Centro" in headers else ""),
+                    datos_actualizados.get("Modelo", row[headers.index("Modelo")] if "Modelo" in headers else ""),
+                    datos_actualizados.get("Consec.", row[headers.index("Consec.")] if "Consec." in headers else ""),
+                    datos_actualizados.get("Desc.", row[headers.index("Desc.")] if "Desc." in headers else ""),
+                    datos_actualizados.get("Descripción Actual", row[headers.index("Descripción Actual")] if "Descripción Actual" in headers else ""),
+                    datos_actualizados.get("Placa", placa),
+                    datos_actualizados.get("Atributos", row[headers.index("Atributos")] if "Atributos" in headers else ""),
+                    datos_actualizados.get("Fecha Adquisición", row[headers.index("Fecha Adquisición")] if "Fecha Adquisición" in headers else ""),
+                    datos_actualizados.get("Ubicación", row[headers.index("Ubicación")] if "Ubicación" in headers else ""),
+                    datos_actualizados.get("Evidencias", row[headers.index("Evidencias")] if "Evidencias" in headers else ""),
+                    datos_actualizados.get("Origen", row[headers.index("Origen")] if "Origen" in headers else "")
+                ]
+                ws.delete_rows(idx)
+                ws.insert_row(new_row, idx)
+                encontrado = True
+                break
+        if encontrado:
+            break
+    if not encontrado:
+        raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado")
+    global _cache, _cache_timestamp
+    _cache = get_google_sheet_data()
+    _cache_timestamp = datetime.now()
+    return {"message": "Artículo editado correctamente"}
+
+@app.delete("/api/inventario/{placa}/eliminar")
+async def eliminar_articulo(placa: str):
+    load_dotenv()
+    sheet_id = os.getenv("GOOGLE_SHEET_ID")
+    creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key(sheet_id)
+    encontrado = False
+    for ws in sheet.worksheets():
+        rows = ws.get_all_values()
+        headers = rows[0]
+        for idx, row in enumerate(rows[1:], start=2):
+            if (row[headers.index("Placa")] if "Placa" in headers else "").strip() == placa:
+                ws.delete_rows(idx)
+                encontrado = True
+                break
+        if encontrado:
+            break
+    if not encontrado:
+        raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado")
+    global _cache, _cache_timestamp
+    _cache = get_google_sheet_data()
+    _cache_timestamp = datetime.now()
+    return {"message": f"Artículo con placa {placa} eliminado correctamente"}
+
+# ========= ENDPOINTS GET QUE USA EL FRONT =========
 @app.get("/api/health")
 async def health_check():
-    """Health check del sistema"""
     global _cache, _cache_timestamp
     return {
         "status": "healthy",
@@ -289,18 +358,12 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
-
 @app.get("/api/articulos")
 async def api_articulos():
-    """Obtener todos los artículos (con cache)"""
-
     global _cache
     if _cache is None:
         _cache = get_google_sheet_data()
     return {"articulos": _cache, "total": len(_cache)}
-
-
-from fastapi import Query
 
 @app.get("/api/inventario/consulta")
 async def consulta_inventario(
@@ -311,7 +374,7 @@ async def consulta_inventario(
     responsable: str = None,
     fecha_inicio: str = None,
     fecha_fin: str = None,
-    exportar_todo: bool = Query(False)  # <-- Nuevo parámetro
+    exportar_todo: bool = Query(False)
 ):
     global _cache
     if _cache is None:
@@ -321,49 +384,35 @@ async def consulta_inventario(
     consecutivo_norm = consecutivo.upper() if consecutivo else None
     resp_norm = responsable.upper() if responsable else None
 
-    fecha_inicio_dt = (
-        datetime.strptime(fecha_inicio, "%Y-%m-%d") if fecha_inicio else datetime.min
-    )
-    fecha_fin_dt = (
-        datetime.strptime(fecha_fin, "%Y-%m-%d") if fecha_fin else datetime.max
-    )
+    fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d") if fecha_inicio else datetime.min
+    fecha_fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d") if fecha_fin else datetime.max
 
     def filtro(art):
         if fecha_inicio or fecha_fin:
             fecha_art_str = art.get("Fecha Adquisición", "")
             if not fecha_art_str:
                 return False
-
             try:
-                fecha_art = datetime.strptime(
-                    fecha_art_str.split("T")[0], "%d/%m/%Y"
-                )
+                fecha_art = datetime.strptime(fecha_art_str.split("T")[0], "%d/%m/%Y")
             except ValueError:
                 try:
-                    fecha_art = datetime.strptime(
-                        fecha_art_str.split("T")[0], "%Y-%m-%d"
-                    )
+                    fecha_art = datetime.strptime(fecha_art_str.split("T")[0], "%Y-%m-%d")
                 except ValueError:
                     return False
-
             if fecha_art < fecha_inicio_dt or fecha_art > fecha_fin_dt:
                 return False
 
         if placa_norm and placa_norm not in art.get("placa", "").upper():
             return False
-
         if consecutivo_norm and consecutivo_norm not in art.get("consec", "").upper():
             return False
-
         if resp_norm and resp_norm != art.get("responsable", "").upper().strip():
             return False
-
         return True
 
     articulos_filtrados = list(filter(filtro, _cache))
     total = len(articulos_filtrados)
 
-    # Si exportar_todo == True, devuelve todo SIN paginar
     if exportar_todo:
         return {
             "articulos": articulos_filtrados,
@@ -373,10 +422,8 @@ async def consulta_inventario(
             "total_pages": 1,
         }
 
-    # Comportamiento normal paginado
     start = (page - 1) * limit
     end = start + limit
-
     return {
         "articulos": articulos_filtrados[start:end],
         "total": total,
@@ -385,11 +432,8 @@ async def consulta_inventario(
         "total_pages": (total + limit - 1) // limit,
     }
 
-
 @app.get("/api/inventario/categorias")
 async def get_categorias():
-    """Obtener lista de categorías únicas"""
-
     articulos = get_google_sheet_data()
     categorias = sorted(set(
         art.get("categoria", "")
@@ -398,11 +442,8 @@ async def get_categorias():
     ))
     return categorias
 
-
 @app.get("/api/inventario/responsables")
 async def get_responsables():
-    """Consulta paginada del inventario"""
-
     articulos = get_google_sheet_data()
     responsables = sorted(set(
         art.get("responsable", "")
@@ -411,14 +452,10 @@ async def get_responsables():
     ))
     return responsables
 
-
 @app.get("/api/inventario/estadisticas")
 async def get_estadisticas():
-    """Obtener estadísticas del inventario"""
-
     articulos = get_google_sheet_data()
-    articulos_validos = [a for a in articulos if a.get("placa") not in [
-        "ERROR", "EMPTY"]]
+    articulos_validos = [a for a in articulos if a.get("placa") not in ["ERROR", "EMPTY"]]
     return {
         "total_articulos": len(articulos_validos),
         "hojas_procesadas": len(set(art.get("hoja", "") for art in articulos_validos)),
@@ -427,48 +464,11 @@ async def get_estadisticas():
         "responsables_unicos": len(set(art.get("responsable", "") for art in articulos_validos if art.get("responsable")))
     }
 
-
-@app.get("/api/cuentadantes")
-async def cuentadantes():
-    """Obtener lista de cuentadantes"""
-
-    data = get_google_sheet_data()
-    responsables = set()
-
-    for art in data:
-        r = art.get("responsable", "").strip()
-        if r and r not in ["", "ERROR", "EMPTY", "NA", "N/A", "N.A."]:
-            responsables.add(r)
-    return {"cuentadantes": sorted(responsables)}
-
-
-@app.get("/api/cuentadantes/{nombre}/articulos")
-async def articulos_por_cuentadante(nombre: str):
-    """Obtener artículos de un cuentadante específico"""
-
-    data = get_google_sheet_data()
-    nombre_norm = normaliza_texto(nombre)
-    articulos = [art for art in data if normaliza_texto(
-        art.get("responsable", "")) == nombre_norm]
-    if not articulos:
-        raise HTTPException(
-            404, f"No se encontraron artículos para el cuentadante: {nombre}")
-    return {
-        "cuentadante": nombre,
-        "articulos": articulos,
-        "total": len(articulos),
-        "valor_total": sum(art.get("valor", 0) for art in articulos)
-    }
-
-
 @app.get("/api/inventario/{placa}/detalle")
 async def detalle_articulo(placa: str):
-    """Obtener detalle de un artículo por placa"""
-
     articulos = get_google_sheet_data()
     placa_norm = normaliza_placa(placa)
-    logger.info(
-        f"Buscando detalle para placa: '{placa}' (normalizada: '{placa_norm}')")
+    logger.info(f"Buscando detalle para placa: '{placa}' (normalizada: '{placa_norm}')")
 
     for art in articulos:
         art_placa_norm = normaliza_placa(art.get("placa", ""))
@@ -478,18 +478,14 @@ async def detalle_articulo(placa: str):
 
     for art in articulos:
         if art.get("placa", "").strip() == placa.strip():
-            logger.info(
-                f"✓ Detalle encontrado (búsqueda original): {art.get('nombre')}")
+            logger.info(f"✓ Detalle encontrado (búsqueda original): {art.get('nombre')}")
             return {"articulo": art}
 
     logger.warning(f"✗ Placa no encontrada: '{placa}'")
     raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado")
 
-
 @app.post("/api/inventario/refresh")
 async def refresh_cache():
-    """Refrescar cache manualmente"""
-
     global _cache, _cache_timestamp
     logger.info("Refrescando cache manualmente...")
     _cache = get_google_sheet_data()
@@ -500,8 +496,6 @@ async def refresh_cache():
         "timestamp": _cache_timestamp.isoformat()
     }
 
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
-
