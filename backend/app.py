@@ -10,6 +10,7 @@ from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 import logging
 
+
 # Configuración de logging
 logging.basicConfig(
     level=logging.INFO,
@@ -17,11 +18,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 app = FastAPI(
     title="Sistema Inventario SENA",
     version="3.0.0",
     description="Sistema de gestión de inventario con Google Sheets"
 )
+
 
 # Configurar CORS
 app.add_middleware(
@@ -32,6 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Montar archivos estáticos
 try:
     app.mount("/static", StaticFiles(directory="../frontend"), name="static")
@@ -39,14 +43,17 @@ try:
 except Exception as e:
     logger.warning(f"No se pudieron montar archivos estáticos: {e}")
 
+
 # Cache global
 _cache = None
 _cache_timestamp = None
+
 
 def normaliza_texto(texto):
     if not texto:
         return ""
     return str(texto).strip().upper()
+
 
 def normaliza_placa(placa):
     if not placa:
@@ -55,6 +62,7 @@ def normaliza_placa(placa):
     placa_norm = placa_norm.strip().lstrip("0").upper()
     return placa_norm if placa_norm else "0"
 
+
 def detectar_columna(headers, palabras_clave):
     headers_lower = [h.lower().strip() for h in headers]
     for idx, header in enumerate(headers_lower):
@@ -62,6 +70,7 @@ def detectar_columna(headers, palabras_clave):
             if palabra.lower() in header:
                 return idx
     return None
+
 
 def get_google_sheet_data():
     try:
@@ -221,6 +230,7 @@ def get_google_sheet_data():
         logger.error(f"Error general: {type(e).__name__}: {e}")
         return [{"id": "ERROR", "placa": "ERROR", "nombre": f"Error: {str(e)}"}]
 
+
 @app.on_event("startup")
 async def startup_event():
     global _cache, _cache_timestamp
@@ -228,6 +238,7 @@ async def startup_event():
     _cache = get_google_sheet_data()
     _cache_timestamp = datetime.now()
     logger.info(f"Cache inicial cargado: {len(_cache)} artículos")
+
 
 # ========= RUTA RAÍZ =========
 @app.get("/")
@@ -241,6 +252,7 @@ async def root():
             "status": "online",
             "timestamp": datetime.now().isoformat()
         }
+
 
 # ========= ENDPOINTS CRUD =========
 @app.post("/api/inventario/crear")
@@ -278,8 +290,13 @@ async def crear_articulo(articulo: dict = Body(...)):
     _cache_timestamp = datetime.now()
     return {"message": "Artículo creado correctamente"}
 
+
 @app.put("/api/inventario/{placa}/editar")
 async def editar_articulo(placa: str, datos_actualizados: dict = Body(...)):
+    """
+    Actualiza SOLO las columnas indicadas en datos_actualizados,
+    manteniendo el resto de la fila intacto y sin cambiar el orden.
+    """
     load_dotenv()
     sheet_id = os.getenv("GOOGLE_SHEET_ID")
     creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
@@ -287,37 +304,62 @@ async def editar_articulo(placa: str, datos_actualizados: dict = Body(...)):
     creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
     client = gspread.authorize(creds)
     sheet = client.open_by_key(sheet_id)
+
     encontrado = False
+
+    # Mapeo de claves del JSON -> nombre exacto de la columna en la hoja
+    campos_a_columnas = {
+        "Centro": "Centro",
+        "Modelo": "Modelo",
+        "Consec.": "Consec.",
+        "Desc.": "Desc.",
+        "Descripción Actual": "Descripción Actual",
+        "Placa": "Placa",
+        "Atributos": "Atributos",
+        "Fecha Adquisición": "Fecha Adquisición",
+        "Ubicación": "Ubicación",
+        "Evidencias": "Evidencias",
+        "Origen": "Origen",
+    }
+
     for ws in sheet.worksheets():
         rows = ws.get_all_values()
+        if not rows:
+            continue
+
         headers = rows[0]
+
+        # Validar que exista la columna Placa en esta hoja
+        if "Placa" not in headers:
+            continue
+
+        placa_idx = headers.index("Placa")
+
         for idx, row in enumerate(rows[1:], start=2):
-            if (row[headers.index("Placa")] if "Placa" in headers else "").strip() == placa:
-                new_row = [
-                    datos_actualizados.get("Centro", row[headers.index("Centro")] if "Centro" in headers else ""),
-                    datos_actualizados.get("Modelo", row[headers.index("Modelo")] if "Modelo" in headers else ""),
-                    datos_actualizados.get("Consec.", row[headers.index("Consec.")] if "Consec." in headers else ""),
-                    datos_actualizados.get("Desc.", row[headers.index("Desc.")] if "Desc." in headers else ""),
-                    datos_actualizados.get("Descripción Actual", row[headers.index("Descripción Actual")] if "Descripción Actual" in headers else ""),
-                    datos_actualizados.get("Placa", placa),
-                    datos_actualizados.get("Atributos", row[headers.index("Atributos")] if "Atributos" in headers else ""),
-                    datos_actualizados.get("Fecha Adquisición", row[headers.index("Fecha Adquisición")] if "Fecha Adquisición" in headers else ""),
-                    datos_actualizados.get("Ubicación", row[headers.index("Ubicación")] if "Ubicación" in headers else ""),
-                    datos_actualizados.get("Evidencias", row[headers.index("Evidencias")] if "Evidencias" in headers else ""),
-                    datos_actualizados.get("Origen", row[headers.index("Origen")] if "Origen" in headers else "")
-                ]
-                ws.delete_rows(idx)
-                ws.insert_row(new_row, idx)
+            if placa_idx >= len(row):
+                continue
+
+            if row[placa_idx].strip() == placa:
+                # Recorre solo los campos que llegaron en el JSON
+                for campo_json, nombre_col in campos_a_columnas.items():
+                    if campo_json in datos_actualizados and nombre_col in headers:
+                        col_idx = headers.index(nombre_col) + 1  # gspread usa índice base 1
+                        nuevo_valor = datos_actualizados.get(campo_json, "")
+                        ws.update_cell(idx, col_idx, nuevo_valor)
                 encontrado = True
                 break
+
         if encontrado:
             break
+
     if not encontrado:
         raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado")
+
     global _cache, _cache_timestamp
     _cache = get_google_sheet_data()
     _cache_timestamp = datetime.now()
     return {"message": "Artículo editado correctamente"}
+
 
 @app.delete("/api/inventario/{placa}/eliminar")
 async def eliminar_articulo(placa: str):
@@ -331,9 +373,16 @@ async def eliminar_articulo(placa: str):
     encontrado = False
     for ws in sheet.worksheets():
         rows = ws.get_all_values()
+        if not rows:
+            continue
         headers = rows[0]
+        if "Placa" not in headers:
+            continue
+        placa_idx = headers.index("Placa")
         for idx, row in enumerate(rows[1:], start=2):
-            if (row[headers.index("Placa")] if "Placa" in headers else "").strip() == placa:
+            if placa_idx >= len(row):
+                continue
+            if row[placa_idx].strip() == placa:
                 ws.delete_rows(idx)
                 encontrado = True
                 break
@@ -345,6 +394,7 @@ async def eliminar_articulo(placa: str):
     _cache = get_google_sheet_data()
     _cache_timestamp = datetime.now()
     return {"message": f"Artículo con placa {placa} eliminado correctamente"}
+
 
 # ========= ENDPOINTS GET QUE USA EL FRONT =========
 @app.get("/api/health")
@@ -358,12 +408,14 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
+
 @app.get("/api/articulos")
 async def api_articulos():
     global _cache
     if _cache is None:
         _cache = get_google_sheet_data()
     return {"articulos": _cache, "total": len(_cache)}
+
 
 @app.get("/api/inventario/consulta")
 async def consulta_inventario(
@@ -432,6 +484,7 @@ async def consulta_inventario(
         "total_pages": (total + limit - 1) // limit,
     }
 
+
 @app.get("/api/inventario/categorias")
 async def get_categorias():
     articulos = get_google_sheet_data()
@@ -442,6 +495,7 @@ async def get_categorias():
     ))
     return categorias
 
+
 @app.get("/api/inventario/responsables")
 async def get_responsables():
     articulos = get_google_sheet_data()
@@ -451,6 +505,7 @@ async def get_responsables():
         if art.get("responsable") and art.get("responsable") not in ["", "ERROR", "EMPTY"]
     ))
     return responsables
+
 
 @app.get("/api/inventario/estadisticas")
 async def get_estadisticas():
@@ -463,6 +518,7 @@ async def get_estadisticas():
         "categorias_unicas": len(set(art.get("categoria", "") for art in articulos_validos if art.get("categoria"))),
         "responsables_unicos": len(set(art.get("responsable", "") for art in articulos_validos if art.get("responsable")))
     }
+
 
 @app.get("/api/inventario/{placa}/detalle")
 async def detalle_articulo(placa: str):
@@ -484,6 +540,7 @@ async def detalle_articulo(placa: str):
     logger.warning(f"✗ Placa no encontrada: '{placa}'")
     raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado")
 
+
 @app.post("/api/inventario/refresh")
 async def refresh_cache():
     global _cache, _cache_timestamp
@@ -495,6 +552,7 @@ async def refresh_cache():
         "total_articulos": len(_cache),
         "timestamp": _cache_timestamp.isoformat()
     }
+
 
 if __name__ == "__main__":
     import uvicorn

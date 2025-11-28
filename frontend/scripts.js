@@ -295,6 +295,7 @@ async function viewDetail(placa) {
         document.getElementById('editOrigen').value = art.Origen || art.responsable || art["Responsable"] || '';
 
         document.querySelectorAll('.detail-input').forEach(inp => inp.setAttribute('disabled', 'disabled'));
+        document.getElementById('editPlaca').setAttribute('disabled', 'disabled');
 
         document.getElementById('detailModal').style.display = 'block';
     } catch (error) {
@@ -334,7 +335,7 @@ async function editArticulo(placa) {
         document.getElementById('editOrigen').value = art.Origen || art.responsable || art["Responsable"] || '';
 
         document.querySelectorAll('.detail-input').forEach(inp => inp.removeAttribute('disabled'));
-        document.getElementById('editPlaca').setAttribute('disabled', 'disabled');
+        document.getElementById('editPlaca').removeAttribute('disabled');
 
         document.getElementById('detailModal').style.display = 'block';
     } catch (error) {
@@ -351,11 +352,14 @@ function guardarCambios() {
         showAlert('No hay artículo cargado', 'error');
         return;
     }
-    const placa = articuloActual.placa || articuloActual["Placa"];
-    if (!placa) {
-        showAlert('Placa no válida', 'error');
+
+    const placaOriginal = articuloActual.placa || articuloActual["Placa"];
+    if (!placaOriginal) {
+        showAlert('Placa original no válida', 'error');
         return;
     }
+
+    const placaNueva = document.getElementById('editPlaca').value.trim() || placaOriginal;
 
     const payload = {
         "Centro": document.getElementById('editCentro').value,
@@ -363,7 +367,7 @@ function guardarCambios() {
         "Consec.": document.getElementById('editConsec').value,
         "Desc.": document.getElementById('editDesc').value,
         "Descripción Actual": document.getElementById('editDescripcionActual').value,
-        "Placa": placa,
+        "Placa": placaNueva,
         "Atributos": document.getElementById('editAtributos').value,
         "Fecha Adquisición": document.getElementById('editFechaAdq').value,
         "Ubicación": document.getElementById('editUbicacion').value,
@@ -371,7 +375,7 @@ function guardarCambios() {
         "Origen": document.getElementById('editOrigen').value
     };
 
-    fetch(`/api/inventario/${placa}/editar`, {
+    fetch(`/api/inventario/${placaOriginal}/editar`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

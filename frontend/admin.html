@@ -40,10 +40,12 @@
                     <label for="searchPlaca">Buscar por Placa</label>
                     <input type="text" id="searchPlaca" placeholder="Ingrese número de placa">
                 </div>
+
                 <div class="input-group">
                     <label for="searchConsec">Buscar por Consecutivo</label>
                     <input type="text" id="searchConsec" placeholder="Ingrese consecutivo">
                 </div>
+
                 <div class="input-group">
                     <label for="filterResponsable">Responsable</label>
                     <select id="filterResponsable">
@@ -59,7 +61,7 @@
             </div>
         </div>
 
-        <!-- Filtros por fechas -->
+        <!-- Filters by Date -->
         <div class="search-section">
             <div class="search-header">
                 <h2 class="search-title">📅 Filtrar por Fechas</h2>
@@ -70,6 +72,7 @@
                     <label for="fechaInicio">Fecha inicial</label>
                     <input type="date" id="fechaInicio">
                 </div>
+
                 <div class="input-group">
                     <label for="fechaFin">Fecha final</label>
                     <input type="date" id="fechaFin">
@@ -93,7 +96,9 @@
             <div class="table-header">
                 <h2 class="table-title">📋 Resultados del Inventario</h2>
                 <div class="table-info">
-                    Mostrando <span id="showingFrom">1</span>-<span id="showingTo">50</span> de <span id="totalResults">0</span> artículos
+                    Mostrando <span id="showingFrom">1</span> -
+                    <span id="showingTo">50</span> de
+                    <span id="totalResults">0</span> artículos
                 </div>
             </div>
 
@@ -108,6 +113,7 @@
                             <th>Acciones</th>
                         </tr>
                     </thead>
+
                     <tbody id="tableBody">
                         <!-- Filas generadas por scripts.js -->
                     </tbody>
@@ -118,6 +124,7 @@
                 <div class="pagination-info">
                     Página <span id="currentPage">1</span> de <span id="totalPages">1</span>
                 </div>
+
                 <div class="pagination-controls">
                     <button class="btn btn-primary btn-sm" id="loadMoreBtn">Ver más</button>
                 </div>
@@ -125,70 +132,82 @@
         </div>
     </div>
 
-    <!-- Detail Modal -->
     <!-- Detail / Edit Modal -->
-<div id="detailModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3 class="modal-title" id="modalTitle">📦 Detalle del Artículo</h3>
-      <button class="close-btn" onclick="closeModal()">&times;</button>
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">📦 Detalle del Artículo</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <form id="editForm" class="detail-grid">
+
+                    <div class="detail-item">
+                        <div class="detail-label">Placa</div>
+                        <input type="text" id="editPlaca" name="Placa" class="detail-input">
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Modelo</div>
+                        <input type="text" id="editModelo" name="Modelo" class="detail-input">
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Centro</div>
+                        <input type="text" id="editCentro" name="Centro" class="detail-input">
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Consec.</div>
+                        <input type="text" id="editConsec" name="Consec." class="detail-input">
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Desc.</div>
+                        <textarea id="editDesc" name="Desc." class="detail-input" rows="2"></textarea>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Descripción Actual</div>
+                        <textarea id="editDescripcionActual" name="Descripción Actual" class="detail-input" rows="2"></textarea>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Atributos</div>
+                        <textarea id="editAtributos" name="Atributos" class="detail-input" rows="3"></textarea>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Fecha Adquisición</div>
+                        <input type="text" id="editFechaAdq" name="Fecha Adquisición" class="detail-input">
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Ubicación</div>
+                        <input type="text" id="editUbicacion" name="Ubicación" class="detail-input">
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Evidencias</div>
+                        <textarea id="editEvidencias" name="Evidencias" class="detail-input" rows="2"></textarea>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Origen / Responsable</div>
+                        <input type="text" id="editOrigen" name="Origen" class="detail-input">
+                    </div>
+
+                </form>
+            </div>
+
+            <div class="modal-footer" id="modalFooter">
+                <button id="btnGuardarCambios" class="btn btn-primary btn-main" onclick="guardarCambios()">
+                    Guardar cambios
+                </button>
+            </div>
+        </div>
     </div>
-    <div class="modal-body">
-      <form id="editForm" class="detail-grid">
-        <div class="detail-item">
-          <div class="detail-label">Placa</div>
-          <input type="text" id="editPlaca" name="Placa" class="detail-input" readonly>
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Modelo</div>
-          <input type="text" id="editModelo" name="Modelo" class="detail-input">
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Centro</div>
-          <input type="text" id="editCentro" name="Centro" class="detail-input">
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Consec.</div>
-          <input type="text" id="editConsec" name="Consec." class="detail-input">
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Desc.</div>
-          <textarea id="editDesc" name="Desc." class="detail-input" rows="2"></textarea>
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Descripción Actual</div>
-          <textarea id="editDescripcionActual" name="Descripción Actual" class="detail-input" rows="2"></textarea>
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Atributos</div>
-          <textarea id="editAtributos" name="Atributos" class="detail-input" rows="3"></textarea>
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Fecha Adquisición</div>
-          <input type="text" id="editFechaAdq" name="Fecha Adquisición" class="detail-input">
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Ubicación</div>
-          <input type="text" id="editUbicacion" name="Ubicación" class="detail-input">
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Evidencias</div>
-          <textarea id="editEvidencias" name="Evidencias" class="detail-input" rows="2"></textarea>
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">Origen / Responsable</div>
-          <input type="text" id="editOrigen" name="Origen" class="detail-input">
-        </div>
-      </form>
-    </div>
-    <div class="modal-footer" id="modalFooter">
-      <!-- Para solo ver, se ocultará el botón guardar -->
-      <button id="btnGuardarCambios" class="btn btn-primary btn-main" onclick="guardarCambios()">
-        Guardar cambios
-      </button>
-    </div>
-  </div>
-</div>
 
     <script src="/static/scripts.js"></script>
 </body>
