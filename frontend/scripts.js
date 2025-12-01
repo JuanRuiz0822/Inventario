@@ -245,7 +245,8 @@ function renderTable() {
                 <div class="crud-actions">
                     <button class="btn btn-success btn-sm" onclick="viewDetail('${placaVal}')">Ver</button>
                     <button class="btn btn-warning btn-sm" onclick="editArticulo('${placaVal}')">Editar</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteArticulo('${placaVal}')">Eliminar</button>
+                    ${/* AQUI PUEDES ACTIVAR LA OPCION DE ELIMNAR DEL CRUD
+                        <button class="btn btn-danger btn-sm" onclick="deleteArticulo('${placaVal}')">Eliminar</button> */''}
                 </div>
             </td>
         `;
@@ -398,6 +399,7 @@ function guardarCambios() {
 // ======================
 // ELIMINAR ARTÍCULO
 // ======================
+/*
 function deleteArticulo(placa) {
     if (!confirm(`¿Seguro que deseas eliminar la placa ${placa}?`)) {
         return;
@@ -415,7 +417,8 @@ function deleteArticulo(placa) {
             loadArticulosConFiltros(1);
         })
         .catch(() => showAlert('Error al eliminar el artículo', 'error'));
-}
+} 
+*/
 
 // ======================
 // MODAL
@@ -501,10 +504,10 @@ function convertToCSV(data) {
         art["Origen"] || ''
     ]);
 
-    let csv = headers.join(',') + '\n';
+    let csv = headers.join(';') + '\n';
 
     rows.forEach(row => {
-        csv += row.map(col => `"${String(col).replace(/"/g, '""')}"`).join(',') + '\n';
+        csv += row.map(col => `"${String(col).replace(/"/g, '""')}"`).join(';') + '\n';
     });
 
     return csv;

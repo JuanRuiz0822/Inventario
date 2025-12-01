@@ -364,11 +364,11 @@ td {
     border: none;   
 }
 
-.btn-success { background: #29c740; color: white; }
-.btn-success:hover { background: #21a535; }
+.btn-success { background: #39A900; color: white; }
+.btn-success:hover { background: #39A900; }
 
-.btn-warning { background: #ffc107; color: #7a5c05; }
-.btn-warning:hover { background: #ffca2c; }
+.btn-warning { background: #FDC300; color: #7a5c05; }
+.btn-warning:hover { background: #FDC300; }
 
 .btn-danger { background: #E74C3C; color: white; }
 .btn-danger:hover { background: #c0392b; }
