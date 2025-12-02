@@ -4,6 +4,10 @@
     box-sizing: border-box;
 }
 
+button {
+    cursor: pointer;
+}
+
 :root {
     --primary-color: #39A900;
     --secondary-color: #0e5176;
@@ -646,25 +650,25 @@ td {
 
 /* integracios "(28/11/2025*/
 .detail-input {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 6px;
-  border: 2px solid var(--border-color);
-  font-size: 14px;
-  box-sizing: border-box;
-  resize: vertical;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 2px solid var(--border-color);
+    font-size: 14px;
+    box-sizing: border-box;
+    resize: vertical;
 }
 
 .detail-input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(57, 169, 0, 0.15);
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(57, 169, 0, 0.15);
 }
 
 .modal-footer {
-  padding: 15px 25px 20px 25px;
-  border-top: 2px solid var(--border-color);
-  display: flex;
-  justify-content: flex-end;
+    padding: 15px 25px 20px 25px;
+    border-top: 2px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
 }
 
