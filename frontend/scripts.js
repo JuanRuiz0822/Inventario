@@ -91,6 +91,7 @@ async function loadCategorias() {
         const categorias = await response.json();
 
         const select = document.getElementById('filterCategoria');
+        if (!select) return;
         categorias.forEach(cat => {
             const option = document.createElement('option');
             option.value = cat;
@@ -245,8 +246,7 @@ function renderTable() {
                 <div class="crud-actions">
                     <button class="btn btn-success btn-sm" onclick="viewDetail('${placaVal}')">Ver</button>
                     <button class="btn btn-warning btn-sm" onclick="editArticulo('${placaVal}')">Editar</button>
-                    ${/* AQUI PUEDES ACTIVAR LA OPCION DE ELIMNAR DEL CRUD
-                        <button class="btn btn-danger btn-sm" onclick="deleteArticulo('${placaVal}')">Eliminar</button> */''}
+                    ${/* <button class="btn btn-danger btn-sm" onclick="deleteArticulo('${placaVal}')">Eliminar</button> */''}
                 </div>
             </td>
         `;
@@ -295,6 +295,12 @@ async function viewDetail(placa) {
         document.getElementById('editEvidencias').value = art.Evidencias || '';
         document.getElementById('editOrigen').value = art.Origen || art.responsable || art["Responsable"] || '';
 
+        const evidenciaFile = document.getElementById('evidenciaFile');
+        if (evidenciaFile) {
+            evidenciaFile.value = '';
+            evidenciaFile.setAttribute('disabled', 'disabled');
+        }
+
         document.querySelectorAll('.detail-input').forEach(inp => inp.setAttribute('disabled', 'disabled'));
         document.getElementById('editPlaca').setAttribute('disabled', 'disabled');
 
@@ -337,6 +343,23 @@ async function editArticulo(placa) {
 
         document.querySelectorAll('.detail-input').forEach(inp => inp.removeAttribute('disabled'));
         document.getElementById('editPlaca').removeAttribute('disabled');
+
+        const evidenciaFile = document.getElementById('evidenciaFile');
+        if (evidenciaFile) {
+            evidenciaFile.value = '';
+            evidenciaFile.removeAttribute('disabled');
+
+            // Futuro: aquí podrás subir el archivo y actualizar editEvidencias con la URL
+            evidenciaFile.onchange = () => {
+                const file = evidenciaFile.files[0];
+                if (!file) return;
+                // Por ahora solo mostramos el nombre como recordatorio
+                const evidenciasInput = document.getElementById('editEvidencias');
+                if (evidenciasInput && !evidenciasInput.value) {
+                    evidenciasInput.value = `Archivo pendiente de subir: ${file.name}`;
+                }
+            };
+        }
 
         document.getElementById('detailModal').style.display = 'block';
     } catch (error) {
@@ -397,7 +420,7 @@ function guardarCambios() {
 }
 
 // ======================
-// ELIMINAR ARTÍCULO
+// ELIMINAR ARTÍCULO (DESHABILITADO)
 // ======================
 /*
 function deleteArticulo(placa) {
@@ -417,7 +440,7 @@ function deleteArticulo(placa) {
             loadArticulosConFiltros(1);
         })
         .catch(() => showAlert('Error al eliminar el artículo', 'error'));
-} 
+}
 */
 
 // ======================

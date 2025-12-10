@@ -190,7 +190,20 @@
 
                     <div class="detail-item">
                         <div class="detail-label">Evidencias</div>
-                        <textarea id="editEvidencias" name="Evidencias" class="detail-input" rows="2"></textarea>
+                        <!-- Texto que se guarda en Google Sheets (URL o comentario) -->
+                        <input
+                            type="text"
+                            id="editEvidencias"
+                            name="Evidencias"
+                            class="detail-input"
+                            placeholder="Sin información">
+                        <!-- Input de archivo para imágenes -->
+                        <input
+                            type="file"
+                            id="evidenciaFile"
+                            accept="image/*"
+                            class="detail-input"
+                            style="margin-top:10px;">
                     </div>
 
                     <div class="detail-item">
@@ -212,4 +225,3 @@
     <script src="/static/scripts.js"></script>
 </body>
 </html>
-

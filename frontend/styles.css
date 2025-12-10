@@ -352,6 +352,7 @@ td {
 }
 
 /* Botones CRUD en tabla */
+/* Botones CRUD en tabla */
 .crud-actions {
     display: flex;
     flex-direction: column;
@@ -365,17 +366,43 @@ td {
     font-weight: 600;
     font-size: 14px;
     border-radius: 8px;
-    border: none;   
+    border: none;
+    /* transición general para todos los botones CRUD */
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.btn-success { background: #39A900; color: white; }
-.btn-success:hover { background: #39A900; }
+/* VER */
+.btn-success {
+    background: #39A900;
+    color: white;
+}
+.btn-success:hover {
+    background: #39A900;
+    transform: scale(1.05);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+}
 
-.btn-warning { background: #FDC300; color: #7a5c05; }
-.btn-warning:hover { background: #FDC300; }
+/* EDITAR */
+.btn-warning {
+    background: #FDC300;
+    color: #7a5c05;
+}
+.btn-warning:hover {
+    background: #FDC300;
+    transform: scale(1.05);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+}
 
-.btn-danger { background: #E74C3C; color: white; }
-.btn-danger:hover { background: #c0392b; }
+/* (si quieres que Eliminar no tenga zoom, déjalo como está) */
+.btn-danger {
+    background: #E74C3C;
+    color: white;
+}
+.btn-danger:hover {
+    background: #c0392b;
+}
+
+
 
 /* Pagination */
 .pagination {
@@ -426,6 +453,12 @@ td {
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.3);
     animation: slideDown 0.3s;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.modal-content:hover {
+    transform: scale(1.01); /* ligero zoom */
+    box-shadow: 0 12px 45px rgba(0,0,0,0.35); /* sombra un poco más fuerte */
 }
 
 @keyframes slideDown {
@@ -492,6 +525,12 @@ td {
     word-break: break-word;
     white-space: pre-line;
     overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.detail-item:hover {
+    transform: translateY(-3px);      /* se eleva un poco */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12); /* resalta como las tarjetas de búsqueda */
 }
 
 .detail-label {
