@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException, Body
+from fastapi import FastAPI, Query, HTTPException, Body, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +9,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 import logging
-
+import shutil
 
 # Configuración de logging
 logging.basicConfig(
@@ -18,13 +18,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 app = FastAPI(
     title="Sistema Inventario SENA",
     version="3.0.0",
     description="Sistema de gestión de inventario con Google Sheets"
 )
-
 
 # Configurar CORS
 app.add_middleware(
@@ -35,14 +33,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# Montar archivos estáticos
+# Montar archivos estáticos del frontend
 try:
     app.mount("/static", StaticFiles(directory="../frontend"), name="static")
     logger.info("Archivos estáticos montados correctamente")
 except Exception as e:
     logger.warning(f"No se pudieron montar archivos estáticos: {e}")
 
+# Carpeta local para evidencias e imágenes subidas
+EVIDENCIAS_DIR = os.path.join("uploaded_evidencias")
+os.makedirs(EVIDENCIAS_DIR, exist_ok=True)
+
+# Servir evidencias como archivos estáticos
+try:
+    app.mount("/evidencias", StaticFiles(directory=EVIDENCIAS_DIR), name="evidencias")
+    logger.info("Carpeta de evidencias montada correctamente")
+except Exception as e:
+    logger.warning(f"No se pudieron montar evidencias: {e}")
 
 # Cache global
 _cache = None
@@ -180,10 +187,10 @@ def get_google_sheet_data():
                         if responsable_raw and responsable_raw.upper() not in ["NA", "N/A", "N.A.", ""]:
                             responsable = responsable_raw
 
-                    def valor_o_vacio(header_name, row, headers):
+                    def valor_o_vacio(header_name, row_, headers_):
                         try:
-                            idx = headers.index(header_name)
-                            val = row[idx].strip()
+                            idx = headers_.index(header_name)
+                            val = row_[idx].strip()
                             return val if val else "Sin información"
                         except Exception:
                             return "Sin información"
@@ -201,12 +208,20 @@ def get_google_sheet_data():
                         "Fecha Adquisición": valor_o_vacio("Fecha Adquisición", row, headers),
                         "Ubicación": valor_o_vacio("Ubicación", row, headers),
                         "Evidencias": valor_o_vacio("Evidencias", row, headers),
-                        "Origen": valor_o_vacio("Origen", row, headers)
+                        "Origen": valor_o_vacio("Origen", row, headers),
+                        "valor": valor,
+                        "fecha_adquisicion": fecha,
+                        "ubicacion": ubicacion,
+                        "responsable": responsable,
+                        "hoja": sheet_name,
+                        "fila": row_idx,
+                        "nombre": nombre,
+                        "categoria": descripcion or "Sin categoría",
                     }
 
                     articulo["placa"] = articulo.get("Placa", "").strip()
                     articulo["consec"] = articulo.get("Consec.", "").strip()
-                    articulo["responsable"] = articulo.get("Origen", "").strip()
+                    articulo["responsable"] = articulo.get("Origen", "").strip() or responsable
 
                     articles.append(articulo)
                     total_rows_processed += 1
@@ -253,6 +268,27 @@ async def root():
             "timestamp": datetime.now().isoformat()
         }
 
+# ========= ENDPOINT PARA SUBIR EVIDENCIAS (PASO 1) =========
+@app.post("/api/inventario/{placa}/evidencia")
+async def subir_evidencia(placa: str, file: UploadFile = File(...)):
+    """
+    Guarda una imagen de evidencia en disco local y devuelve la URL pública.
+    Más adelante se puede cambiar para subir a un host externo.
+    """
+    safe_name = file.filename.replace(" ", "_")
+    filename = f"{placa}_{safe_name}"
+    save_path = os.path.join(EVIDENCIAS_DIR, filename)
+
+    try:
+        with open(save_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        logger.error(f"Error guardando evidencia para placa {placa}: {e}")
+        raise HTTPException(status_code=500, detail="Error al guardar la evidencia")
+
+    base_url = "http://localhost:8000"
+    public_url = f"{base_url}/evidencias/{filename}"
+    return {"url": public_url}
 
 # ========= ENDPOINTS CRUD =========
 @app.post("/api/inventario/crear")
@@ -307,7 +343,6 @@ async def editar_articulo(placa: str, datos_actualizados: dict = Body(...)):
 
     encontrado = False
 
-    # Mapeo de claves del JSON -> nombre exacto de la columna en la hoja
     campos_a_columnas = {
         "Centro": "Centro",
         "Modelo": "Modelo",
@@ -329,7 +364,6 @@ async def editar_articulo(placa: str, datos_actualizados: dict = Body(...)):
 
         headers = rows[0]
 
-        # Validar que exista la columna Placa en esta hoja
         if "Placa" not in headers:
             continue
 
@@ -340,10 +374,9 @@ async def editar_articulo(placa: str, datos_actualizados: dict = Body(...)):
                 continue
 
             if row[placa_idx].strip() == placa:
-                # Recorre solo los campos que llegaron en el JSON
                 for campo_json, nombre_col in campos_a_columnas.items():
                     if campo_json in datos_actualizados and nombre_col in headers:
-                        col_idx = headers.index(nombre_col) + 1  # gspread usa índice base 1
+                        col_idx = headers.index(nombre_col) + 1
                         nuevo_valor = datos_actualizados.get(campo_json, "")
                         ws.update_cell(idx, col_idx, nuevo_valor)
                 encontrado = True
@@ -557,3 +590,8 @@ async def refresh_cache():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+
+
+# 1.19
+
+

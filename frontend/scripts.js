@@ -246,7 +246,7 @@ function renderTable() {
                 <div class="crud-actions">
                     <button class="btn btn-success btn-sm" onclick="viewDetail('${placaVal}')">Ver</button>
                     <button class="btn btn-warning btn-sm" onclick="editArticulo('${placaVal}')">Editar</button>
-                    ${/* <button class="btn btn-danger btn-sm" onclick="deleteArticulo('${placaVal}')">Eliminar</button> */''}
+                    ${''}
                 </div>
             </td>
         `;
@@ -349,14 +349,38 @@ async function editArticulo(placa) {
             evidenciaFile.value = '';
             evidenciaFile.removeAttribute('disabled');
 
-            // Futuro: aquí podrás subir el archivo y actualizar editEvidencias con la URL
-            evidenciaFile.onchange = () => {
+            evidenciaFile.onchange = async () => {
                 const file = evidenciaFile.files[0];
                 if (!file) return;
-                // Por ahora solo mostramos el nombre como recordatorio
-                const evidenciasInput = document.getElementById('editEvidencias');
-                if (evidenciasInput && !evidenciasInput.value) {
-                    evidenciasInput.value = `Archivo pendiente de subir: ${file.name}`;
+
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    const placaForUpload =
+                        document.getElementById('editPlaca').value.trim() ||
+                        art.placa || art["Placa"];
+
+                    const resp = await fetch(`/api/inventario/${encodeURIComponent(placaForUpload)}/evidencia`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!resp.ok) {
+                        showAlert('Error al subir la evidencia', 'error');
+                        return;
+                    }
+
+                    const dataUpload = await resp.json();
+                    const evidenciasInput = document.getElementById('editEvidencias');
+                    if (evidenciasInput) {
+                        evidenciasInput.value = dataUpload.url;
+                    }
+
+                    showAlert('Evidencia subida correctamente', 'success');
+                } catch (e) {
+                    console.error(e);
+                    showAlert('Error al subir la evidencia', 'error');
                 }
             };
         }
@@ -418,30 +442,6 @@ function guardarCambios() {
             showAlert('Error al editar el artículo', 'error');
         });
 }
-
-// ======================
-// ELIMINAR ARTÍCULO (DESHABILITADO)
-// ======================
-/*
-function deleteArticulo(placa) {
-    if (!confirm(`¿Seguro que deseas eliminar la placa ${placa}?`)) {
-        return;
-    }
-
-    fetch(`/api/inventario/${placa}/eliminar`, {
-        method: 'DELETE'
-    })
-        .then(resp => {
-            if (!resp.ok) throw new Error('Error en eliminado');
-            return resp.json();
-        })
-        .then(() => {
-            showAlert('Artículo eliminado correctamente', 'success');
-            loadArticulosConFiltros(1);
-        })
-        .catch(() => showAlert('Error al eliminar el artículo', 'error'));
-}
-*/
 
 // ======================
 // MODAL
