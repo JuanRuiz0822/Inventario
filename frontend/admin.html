@@ -188,22 +188,51 @@
                         <input type="text" id="editUbicacion" name="Ubicación" class="detail-input">
                     </div>
 
-                    <div class="detail-item">
-                        <div class="detail-label">Evidencias</div>
-                        <!-- Texto que se guarda en Google Sheets (URL o comentario) -->
+                    <!-- ⭐ SECCIÓN MEJORADA DE EVIDENCIAS -->
+                    <div class="detail-item" style="grid-column: 1 / -1;">
+                        <div class="detail-label">📷 Evidencias</div>
+                        
+                        <!-- Campo de texto para URL manual o sincronización -->
                         <input
                             type="text"
                             id="editEvidencias"
                             name="Evidencias"
                             class="detail-input"
-                            placeholder="Sin información">
-                        <!-- Input de archivo para imágenes -->
-                        <input
-                            type="file"
-                            id="evidenciaFile"
-                            accept="image/*"
-                            class="detail-input"
-                            style="margin-top:10px;">
+                            placeholder="URLs guardadas en Google Sheets"
+                            readonly
+                            style="margin-bottom: 10px; background-color: #f5f5f5;">
+                        
+                        <!-- Galería de evidencias almacenadas en SQLite -->
+                        <div id="evidenciasGaleria" style="margin-bottom: 15px; min-height: 50px; padding: 10px; border: 1px dashed #ccc; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                            <p style="color: #999; font-style: italic; margin: 0;">Cargando evidencias...</p>
+                        </div>
+                        
+                        <!-- Controles para subir y sincronizar -->
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <input
+                                type="file"
+                                id="evidenciaFile"
+                                accept="image/*"
+                                class="detail-input"
+                                style="flex: 1; min-width: 200px;">
+                            <button 
+                                type="button" 
+                                id="btnSubirEvidencia" 
+                                class="btn btn-primary" 
+                                style="white-space: nowrap; padding: 8px 16px;">
+                                📤 Subir Imagen
+                            </button>
+                            <button 
+                                type="button" 
+                                id="btnSincronizarEvidencias" 
+                                class="btn btn-outline" 
+                                style="white-space: nowrap; padding: 8px 16px;">
+                                🔄 Sincronizar con Sheets
+                            </button>
+                        </div>
+                        
+                        <!-- Mensaje de estado de operaciones -->
+                        <div id="evidenciaStatus" style="margin-top: 10px; padding: 8px; border-radius: 4px; font-size: 14px; display: none;"></div>
                     </div>
 
                     <div class="detail-item">
@@ -223,5 +252,202 @@
     </div>
 
     <script src="/static/scripts.js"></script>
+    
+    <!-- ⭐ SCRIPT INLINE PARA GESTIÓN DE EVIDENCIAS -->
+    <script>
+        // ========= FUNCIONES PARA EVIDENCIAS =========
+
+        // Cargar evidencias de una placa desde SQLite
+        async function cargarEvidencias(placa) {
+            try {
+                const response = await fetch(`/api/inventario/${placa}/evidencias`);
+                const data = await response.json();
+                
+                const galeria = document.getElementById('evidenciasGaleria');
+                galeria.innerHTML = '';
+                
+                if (data.evidencias && data.evidencias.length > 0) {
+                    data.evidencias.forEach(ev => {
+                        const imgContainer = document.createElement('div');
+                        imgContainer.style.cssText = 'position: relative; width: 120px; height: 120px;';
+                        
+                        imgContainer.innerHTML = `
+                            <img src="${ev.url}" 
+                                 style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid #ddd;"
+                                 onclick="window.open('${ev.url}', '_blank')"
+                                 title="Click para ver en tamaño completo - ${ev.filename}"
+                                 alt="${ev.filename}">
+                            <button onclick="eliminarEvidencia('${placa}', '${ev.filename}')"
+                                    style="position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 18px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.2s;"
+                                    onmouseover="this.style.backgroundColor='#c0392b'; this.style.transform='scale(1.1)'"
+                                    onmouseout="this.style.backgroundColor='#e74c3c'; this.style.transform='scale(1)'">
+                                ×
+                            </button>
+                            <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); color: white; padding: 4px; font-size: 10px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                ${ev.filename.substring(0, 20)}...
+                            </div>
+                        `;
+                        
+                        galeria.appendChild(imgContainer);
+                    });
+                    
+                    // Actualizar contador
+                    const contador = document.createElement('div');
+                    contador.style.cssText = 'width: 100%; text-align: center; color: #666; font-size: 12px; margin-top: 5px;';
+                    contador.textContent = `Total: ${data.evidencias.length} imagen(es)`;
+                    galeria.appendChild(contador);
+                } else {
+                    galeria.innerHTML = '<p style="color: #999; font-style: italic; margin: 0; text-align: center; width: 100%;">No hay evidencias cargadas para esta placa</p>';
+                }
+            } catch (error) {
+                console.error('Error cargando evidencias:', error);
+                const galeria = document.getElementById('evidenciasGaleria');
+                galeria.innerHTML = '<p style="color: #e74c3c; margin: 0;">❌ Error al cargar evidencias</p>';
+            }
+        }
+
+        // Mostrar mensaje de estado
+        function mostrarEstado(mensaje, tipo = 'info') {
+            const statusDiv = document.getElementById('evidenciaStatus');
+            const colores = {
+                'success': { bg: '#d4edda', text: '#155724', border: '#c3e6cb' },
+                'error': { bg: '#f8d7da', text: '#721c24', border: '#f5c6cb' },
+                'info': { bg: '#d1ecf1', text: '#0c5460', border: '#bee5eb' },
+                'warning': { bg: '#fff3cd', text: '#856404', border: '#ffeaa7' }
+            };
+            
+            const color = colores[tipo] || colores['info'];
+            statusDiv.style.display = 'block';
+            statusDiv.style.backgroundColor = color.bg;
+            statusDiv.style.color = color.text;
+            statusDiv.style.border = `1px solid ${color.border}`;
+            statusDiv.innerHTML = mensaje;
+            
+            if (tipo === 'success' || tipo === 'error') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 4000);
+            }
+        }
+
+        // Eliminar evidencia
+        async function eliminarEvidencia(placa, filename) {
+            if (!confirm('¿Estás seguro de eliminar esta evidencia?\n\nEsta acción no se puede deshacer.')) {
+                return;
+            }
+            
+            mostrarEstado('⏳ Eliminando evidencia...', 'info');
+            
+            try {
+                const response = await fetch(`/api/inventario/${placa}/evidencia/${filename}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    mostrarEstado('✅ Evidencia eliminada correctamente', 'success');
+                    await cargarEvidencias(placa);
+                } else {
+                    const error = await response.json();
+                    mostrarEstado(`❌ Error: ${error.detail || 'No se pudo eliminar'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error eliminando evidencia:', error);
+                mostrarEstado('❌ Error de conexión al eliminar', 'error');
+            }
+        }
+
+        // Inicializar eventos cuando cargue el DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Evento: Subir evidencia
+            const btnSubir = document.getElementById('btnSubirEvidencia');
+            if (btnSubir) {
+                btnSubir.addEventListener('click', async function() {
+                    const placa = document.getElementById('editPlaca').value;
+                    const fileInput = document.getElementById('evidenciaFile');
+                    const file = fileInput.files[0];
+                    
+                    if (!file) {
+                        mostrarEstado('⚠️ Por favor selecciona una imagen primero', 'warning');
+                        return;
+                    }
+                    
+                    // Validar tipo de archivo
+                    if (!file.type.startsWith('image/')) {
+                        mostrarEstado('⚠️ Solo se permiten archivos de imagen', 'warning');
+                        return;
+                    }
+                    
+                    // Validar tamaño (máximo 5MB)
+                    if (file.size > 5 * 1024 * 1024) {
+                        mostrarEstado('⚠️ La imagen no debe superar 5MB', 'warning');
+                        return;
+                    }
+                    
+                    mostrarEstado('⏳ Subiendo imagen, por favor espera...', 'info');
+                    btnSubir.disabled = true;
+                    
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        
+                        const response = await fetch(`/api/inventario/${placa}/evidencia`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok) {
+                            mostrarEstado(`✅ Imagen "${file.name}" subida correctamente`, 'success');
+                            fileInput.value = '';
+                            await cargarEvidencias(placa);
+                        } else {
+                            mostrarEstado(`❌ Error: ${result.detail || 'No se pudo subir'}`, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error subiendo evidencia:', error);
+                        mostrarEstado('❌ Error de conexión al subir imagen', 'error');
+                    } finally {
+                        btnSubir.disabled = false;
+                    }
+                });
+            }
+            
+            // Evento: Sincronizar con Google Sheets
+            const btnSincronizar = document.getElementById('btnSincronizarEvidencias');
+            if (btnSincronizar) {
+                btnSincronizar.addEventListener('click', async function() {
+                    const placa = document.getElementById('editPlaca').value;
+                    
+                    mostrarEstado('⏳ Sincronizando con Google Sheets...', 'info');
+                    btnSincronizar.disabled = true;
+                    
+                    try {
+                        const response = await fetch(`/api/inventario/${placa}/sincronizar-evidencias`, {
+                            method: 'PUT'
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok) {
+                            mostrarEstado(`✅ Sincronizado: ${result.total_urls} URL(s) guardadas en Sheets`, 'success');
+                            document.getElementById('editEvidencias').value = result.urls_sincronizadas;
+                        } else {
+                            mostrarEstado(`❌ ${result.detail || 'Error al sincronizar'}`, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error sincronizando:', error);
+                        mostrarEstado('❌ Error de conexión al sincronizar', 'error');
+                    } finally {
+                        btnSincronizar.disabled = false;
+                    }
+                });
+            }
+        });
+
+        // ⭐ IMPORTANTE: Exponer función para usar en otras partes del código
+        window.cargarEvidencias = cargarEvidencias;
+    </script>
 </body>
 </html>

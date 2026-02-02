@@ -10,6 +10,9 @@ from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 import logging
 import shutil
+import sqlite3
+from typing import List
+
 
 # Configuración de logging
 logging.basicConfig(
@@ -18,11 +21,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 app = FastAPI(
     title="Sistema Inventario SENA",
-    version="3.0.0",
-    description="Sistema de gestión de inventario con Google Sheets"
+    version="3.0.2",
+    description="Sistema de gestión de inventario con Google Sheets y SQLite"
 )
+
 
 # Configurar CORS
 app.add_middleware(
@@ -33,27 +38,193 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Montar archivos estáticos del frontend
 try:
     app.mount("/static", StaticFiles(directory="../frontend"), name="static")
-    logger.info("Archivos estáticos montados correctamente")
+    logger.info("✓ Archivos estáticos montados correctamente")
 except Exception as e:
-    logger.warning(f"No se pudieron montar archivos estáticos: {e}")
+    logger.warning(f"⚠️ No se pudieron montar archivos estáticos: {e}")
+
 
 # Carpeta local para evidencias e imágenes subidas
 EVIDENCIAS_DIR = os.path.join("uploaded_evidencias")
 os.makedirs(EVIDENCIAS_DIR, exist_ok=True)
 
+
 # Servir evidencias como archivos estáticos
 try:
     app.mount("/evidencias", StaticFiles(directory=EVIDENCIAS_DIR), name="evidencias")
-    logger.info("Carpeta de evidencias montada correctamente")
+    logger.info("✓ Carpeta de evidencias montada correctamente")
 except Exception as e:
-    logger.warning(f"No se pudieron montar evidencias: {e}")
+    logger.warning(f"⚠️ No se pudieron montar evidencias: {e}")
+
 
 # Cache global
 _cache = None
 _cache_timestamp = None
+
+
+# ========= CONFIGURACIÓN BASE DE DATOS SQLite =========
+DB_PATH = os.path.join(os.path.dirname(__file__), "inventario_evidencias.db")
+
+
+def init_database():
+    """Inicializa la base de datos SQLite con la tabla de evidencias"""
+    try:
+        # Asegurar que el directorio existe
+        db_dir = os.path.dirname(DB_PATH)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+        
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Crear tabla para almacenar URLs de evidencias
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS evidencias_urls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                placa TEXT NOT NULL,
+                url TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                fecha_subida TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(placa, filename)
+            )
+        ''')
+        
+        # Crear índice para búsquedas rápidas por placa
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_placa 
+            ON evidencias_urls(placa)
+        ''')
+        
+        conn.commit()
+        conn.close()
+        logger.info(f"✅ Base de datos SQLite inicializada: {DB_PATH}")
+        
+        # Verificar permisos
+        if os.path.exists(DB_PATH):
+            logger.info(f"✓ Archivo DB creado correctamente (tamaño: {os.path.getsize(DB_PATH)} bytes)")
+    except Exception as e:
+        logger.error(f"❌ Error inicializando base de datos: {e}")
+        raise
+
+
+def guardar_url_evidencia(placa: str, url: str, filename: str):
+    """Guarda la URL de una evidencia en la base de datos"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Verificar si ya existe
+        cursor.execute('''
+            SELECT id FROM evidencias_urls 
+            WHERE placa = ? AND filename = ?
+        ''', (placa, filename))
+        
+        existe = cursor.fetchone()
+        
+        if existe:
+            # Actualizar URL existente
+            cursor.execute('''
+                UPDATE evidencias_urls 
+                SET url = ?, fecha_subida = CURRENT_TIMESTAMP
+                WHERE placa = ? AND filename = ?
+            ''', (url, placa, filename))
+            logger.info(f"✓ URL actualizada en BD: {placa} -> {filename}")
+        else:
+            # Insertar nueva URL
+            cursor.execute('''
+                INSERT INTO evidencias_urls (placa, url, filename)
+                VALUES (?, ?, ?)
+            ''', (placa, url, filename))
+            logger.info(f"✓ URL insertada en BD: {placa} -> {filename}")
+        
+        conn.commit()
+        
+        # Verificar que se guardó
+        cursor.execute('''
+            SELECT COUNT(*) FROM evidencias_urls 
+            WHERE placa = ? AND filename = ?
+        ''', (placa, filename))
+        count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        if count > 0:
+            logger.info(f"✅ Verificación exitosa: URL guardada para {placa}")
+            return True
+        else:
+            logger.error(f"❌ Verificación falló: URL NO se guardó para {placa}")
+            return False
+            
+    except sqlite3.IntegrityError as e:
+        logger.error(f"❌ Error de integridad en BD: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Error guardando URL en BD: {type(e).__name__}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
+
+def obtener_urls_evidencias(placa: str) -> List[dict]:
+    """Obtiene todas las URLs de evidencias de una placa"""
+    try:
+        if not os.path.exists(DB_PATH):
+            logger.warning(f"⚠️ Base de datos no existe: {DB_PATH}")
+            return []
+        
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT url, filename, fecha_subida
+            FROM evidencias_urls
+            WHERE placa = ?
+            ORDER BY fecha_subida DESC
+        ''', (placa,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        result = [dict(row) for row in rows]
+        logger.info(f"📋 Evidencias encontradas para {placa}: {len(result)}")
+        
+        return result
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo URLs de BD: {e}")
+        return []
+
+
+def eliminar_url_evidencia(placa: str, filename: str):
+    """Elimina una URL de evidencia de la base de datos"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            DELETE FROM evidencias_urls
+            WHERE placa = ? AND filename = ?
+        ''', (placa, filename))
+        
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        if deleted > 0:
+            logger.info(f"✓ URL eliminada de BD: {placa} - {filename}")
+            return True
+        else:
+            logger.warning(f"⚠️ No se encontró URL en BD: {placa} - {filename}")
+            return False
+    except Exception as e:
+        logger.error(f"❌ Error eliminando URL de BD: {e}")
+        return False
+
+
+# ========= FUNCIONES AUXILIARES =========
 
 
 def normaliza_texto(texto):
@@ -246,13 +417,20 @@ def get_google_sheet_data():
         return [{"id": "ERROR", "placa": "ERROR", "nombre": f"Error: {str(e)}"}]
 
 
+# ========= EVENTOS DE INICIO =========
+
+
 @app.on_event("startup")
 async def startup_event():
     global _cache, _cache_timestamp
-    logger.info("Iniciando aplicación...")
+    logger.info("🚀 Iniciando aplicación Sistema Inventario SENA v3.0.2...")
+    
+    # Inicializar base de datos SQLite
+    init_database()
+    
     _cache = get_google_sheet_data()
     _cache_timestamp = datetime.now()
-    logger.info(f"Cache inicial cargado: {len(_cache)} artículos")
+    logger.info(f"✅ Cache inicial cargado: {len(_cache)} artículos")
 
 
 # ========= RUTA RAÍZ =========
@@ -263,34 +441,226 @@ async def root():
         return FileResponse("../frontend/admin.html")
     except Exception:
         return {
-            "message": "Sistema Inventario SENA v3.0",
+            "message": "Sistema Inventario SENA v3.0.2",
             "status": "online",
             "timestamp": datetime.now().isoformat()
         }
 
-# ========= ENDPOINT PARA SUBIR EVIDENCIAS (PASO 1) =========
+
+# ========= ENDPOINTS PARA EVIDENCIAS =========
+
+
 @app.post("/api/inventario/{placa}/evidencia")
 async def subir_evidencia(placa: str, file: UploadFile = File(...)):
     """
-    Guarda una imagen de evidencia en disco local y devuelve la URL pública.
-    Más adelante se puede cambiar para subir a un host externo.
+    Guarda una imagen de evidencia en disco local, en la base de datos SQLite
+    y devuelve la URL pública.
     """
     safe_name = file.filename.replace(" ", "_")
     filename = f"{placa}_{safe_name}"
     save_path = os.path.join(EVIDENCIAS_DIR, filename)
 
     try:
+        # 1. Guardar archivo en disco
         with open(save_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
+        logger.info(f"✓ Archivo guardado en disco: {save_path}")
+        
+        # 2. Generar URL pública
+        base_url = os.getenv("BASE_URL", "http://localhost:8000")
+        public_url = f"{base_url}/evidencias/{filename}"
+        
+        logger.info(f"📍 URL generada: {public_url}")
+        
+        # 3. Guardar URL en base de datos SQLite
+        guardado = guardar_url_evidencia(placa, public_url, filename)
+        
+        if not guardado:
+            logger.error("❌ FALLO AL GUARDAR EN BASE DE DATOS")
+            # Opcional: eliminar archivo si no se guardó en BD
+            # os.remove(save_path)
+            raise HTTPException(
+                status_code=500, 
+                detail="Archivo guardado pero falló el registro en base de datos"
+            )
+        
+        logger.info(f"✅ EVIDENCIA COMPLETA: {filename} para placa {placa}")
+        
+        return {
+            "url": public_url,
+            "filename": filename,
+            "message": "Evidencia guardada correctamente",
+            "guardado_bd": True
+        }
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error guardando evidencia para placa {placa}: {e}")
-        raise HTTPException(status_code=500, detail="Error al guardar la evidencia")
+        logger.error(f"❌ Error guardando evidencia para placa {placa}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error al guardar la evidencia: {str(e)}")
 
-    base_url = "http://localhost:8000"
-    public_url = f"{base_url}/evidencias/{filename}"
-    return {"url": public_url}
+
+@app.get("/api/inventario/{placa}/evidencias")
+async def obtener_evidencias(placa: str):
+    """
+    Obtiene todas las URLs de evidencias almacenadas para una placa específica
+    """
+    try:
+        urls = obtener_urls_evidencias(placa)
+        
+        return {
+            "placa": placa,
+            "total": len(urls),
+            "evidencias": urls
+        }
+    except Exception as e:
+        logger.error(f"Error obteniendo evidencias de {placa}: {e}")
+        raise HTTPException(status_code=500, detail="Error al obtener evidencias")
+
+
+@app.delete("/api/inventario/{placa}/evidencia/{filename}")
+async def eliminar_evidencia(placa: str, filename: str):
+    """
+    Elimina una evidencia del disco y de la base de datos
+    """
+    try:
+        # Eliminar archivo del disco
+        file_path = os.path.join(EVIDENCIAS_DIR, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logger.info(f"✓ Archivo eliminado del disco: {filename}")
+        
+        # Eliminar de la base de datos
+        eliminar_url_evidencia(placa, filename)
+        
+        return {
+            "message": "Evidencia eliminada correctamente",
+            "placa": placa,
+            "filename": filename
+        }
+    except Exception as e:
+        logger.error(f"Error eliminando evidencia {filename}: {e}")
+        raise HTTPException(status_code=500, detail="Error al eliminar evidencia")
+
+
+@app.put("/api/inventario/{placa}/sincronizar-evidencias")
+async def sincronizar_evidencias_google_sheets(placa: str):
+    """
+    Sincroniza las URLs de evidencias almacenadas en SQLite con Google Sheets
+    """
+    try:
+        # Obtener URLs de la base de datos
+        urls = obtener_urls_evidencias(placa)
+        
+        if not urls:
+            raise HTTPException(404, "No hay evidencias para sincronizar")
+        
+        # Concatenar todas las URLs separadas por coma
+        urls_text = ", ".join([u["url"] for u in urls])
+        
+        # Actualizar en Google Sheets
+        load_dotenv()
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key(sheet_id)
+        
+        encontrado = False
+        
+        for ws in sheet.worksheets():
+            rows = ws.get_all_values()
+            if not rows:
+                continue
+            
+            headers = rows[0]
+            if "Placa" not in headers or "Evidencias" not in headers:
+                continue
+            
+            placa_idx = headers.index("Placa")
+            evidencias_idx = headers.index("Evidencias") + 1
+            
+            for idx, row in enumerate(rows[1:], start=2):
+                if placa_idx >= len(row):
+                    continue
+                
+                if row[placa_idx].strip() == placa:
+                    ws.update_cell(idx, evidencias_idx, urls_text)
+                    encontrado = True
+                    break
+            
+            if encontrado:
+                break
+        
+        if not encontrado:
+            raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado en Google Sheets")
+        
+        # Actualizar cache
+        global _cache, _cache_timestamp
+        _cache = get_google_sheet_data()
+        _cache_timestamp = datetime.now()
+        
+        return {
+            "message": "Evidencias sincronizadas con Google Sheets",
+            "placa": placa,
+            "total_urls": len(urls),
+            "urls_sincronizadas": urls_text
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sincronizando evidencias: {e}")
+        raise HTTPException(status_code=500, detail=f"Error en sincronización: {str(e)}")
+
+
+# ========= ENDPOINT DEBUG (ELIMINAR EN PRODUCCIÓN) =========
+
+
+@app.get("/api/debug/evidencias")
+async def debug_evidencias():
+    """Endpoint de depuración - eliminar en producción"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Verificar que la tabla existe
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = cursor.fetchall()
+        
+        # Contar registros
+        cursor.execute("SELECT COUNT(*) FROM evidencias_urls")
+        total = cursor.fetchone()[0]
+        
+        # Obtener todos los registros
+        cursor.execute("SELECT * FROM evidencias_urls ORDER BY fecha_subida DESC LIMIT 10")
+        registros = cursor.fetchall()
+        
+        conn.close()
+        
+        return {
+            "db_path": DB_PATH,
+            "db_exists": os.path.exists(DB_PATH),
+            "db_size": os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0,
+            "tables": tables,
+            "total_registros": total,
+            "ultimos_10": registros
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "db_path": DB_PATH,
+            "db_exists": os.path.exists(DB_PATH)
+        }
+
 
 # ========= ENDPOINTS CRUD =========
+
+
 @app.post("/api/inventario/crear")
 async def crear_articulo(articulo: dict = Body(...)):
     responsable = articulo.get("responsable") or articulo.get("Origen")
@@ -430,15 +800,19 @@ async def eliminar_articulo(placa: str):
 
 
 # ========= ENDPOINTS GET QUE USA EL FRONT =========
+
+
 @app.get("/api/health")
 async def health_check():
     global _cache, _cache_timestamp
     return {
         "status": "healthy",
-        "version": "3.0.0",
+        "version": "3.0.2",
         "cache_size": len(_cache) if _cache else 0,
         "cache_timestamp": _cache_timestamp.isoformat() if _cache_timestamp else None,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "db_path": DB_PATH,
+        "db_exists": os.path.exists(DB_PATH)
     }
 
 
@@ -587,11 +961,6 @@ async def refresh_cache():
     }
 
 
-if __name__ == "__main__":
+if __name__ == "_main_":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
-
-
-# 1.19
-
-
