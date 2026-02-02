@@ -67,3 +67,9 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+
+# Google credentials (NO subir jamás)
+backend/token.json
+backend/client_secret_oauth.json
+backend/sena-inventario-2025-*.json
+.env
