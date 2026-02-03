@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema Inventario SENA v3.0</title>
+    <title>Sistema Inventario SENA v3.0 - OPTIMIZADO</title>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -15,12 +15,13 @@
                 </div>
                 <div class="text-section">
                     <h1>Sistema Inventario de Activos SENA</h1>
-                    <p>Gestión Inteligente de Activos v3.0</p>
+                    <p>Gestión Inteligente de Activos v3.0 - OPTIMIZADO ⚡</p>
                 </div>
             </div>
-            <!--
-            <button id="btnActualizar" class="btn btn-primary">ACTUALIZAR DATOS</button>
-            -->
+            <!-- ⭐ BOTÓN DE SINCRONIZACIÓN MANUAL -->
+            <button id="btnActualizar" class="btn btn-primary" style="white-space: nowrap;">
+                🔄 SINCRONIZAR
+            </button>
         </div>
     </header>
 
@@ -188,11 +189,10 @@
                         <input type="text" id="editUbicacion" name="Ubicación" class="detail-input">
                     </div>
 
-                    <!-- ⭐ SECCIÓN MEJORADA DE EVIDENCIAS -->
+                    <!-- ⭐ SECCIÓN OPTIMIZADA DE EVIDENCIAS -->
                     <div class="detail-item" style="grid-column: 1 / -1;">
                         <div class="detail-label">📷 Evidencias</div>
                         
-                        <!-- Campo de texto para URL manual o sincronización -->
                         <input
                             type="text"
                             id="editEvidencias"
@@ -202,12 +202,10 @@
                             readonly
                             style="margin-bottom: 10px; background-color: #f5f5f5;">
                         
-                        <!-- Galería de evidencias almacenadas en SQLite -->
                         <div id="evidenciasGaleria" style="margin-bottom: 15px; min-height: 50px; padding: 10px; border: 1px dashed #ccc; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-                            <p style="color: #999; font-style: italic; margin: 0;">Cargando evidencias...</p>
+                            <p style="color: #999; font-style: italic; margin: 0;">Las evidencias se cargarán cuando abras este artículo...</p>
                         </div>
                         
-                        <!-- Controles para subir y sincronizar -->
                         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                             <input
                                 type="file"
@@ -231,7 +229,6 @@
                             </button>
                         </div>
                         
-                        <!-- Mensaje de estado de operaciones -->
                         <div id="evidenciaStatus" style="margin-top: 10px; padding: 8px; border-radius: 4px; font-size: 14px; display: none;"></div>
                     </div>
 
@@ -244,7 +241,6 @@
             </div>
 
             <div class="modal-footer" id="modalFooter">
-                <!-- ✅ BOTÓN SIN onclick - se maneja con addEventListener -->
                 <button id="btnGuardarCambios" class="btn btn-primary btn-main">
                     Guardar cambios
                 </button>
@@ -254,17 +250,70 @@
 
     <script src="/static/scripts.js"></script>
     
-    <!-- ⭐ SCRIPT INLINE PARA GESTIÓN DE EVIDENCIAS -->
+    <!-- ⭐ SCRIPTS OPTIMIZADOS CON SINCRONIZACIÓN -->
     <script>
+        // ========= SINCRONIZACIÓN MANUAL CON GOOGLE SHEETS =========
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // ✅ BOTÓN DE SINCRONIZACIÓN EN HEADER
+            const btnActualizar = document.getElementById('btnActualizar');
+            
+            if (btnActualizar) {
+                btnActualizar.addEventListener('click', async function() {
+                    
+                    // Confirmación
+                    if (!confirm('¿Sincronizar con Google Sheets?\n\nEsto traerá los últimos cambios de tu hoja de cálculo.\n\n• Cambios manuales en Sheets\n• Artículos nuevos\n• Actualizaciones de otros usuarios')) {
+                        return;
+                    }
+                    
+                    const textoOriginal = btnActualizar.innerHTML;
+                    btnActualizar.disabled = true;
+                    btnActualizar.innerHTML = '⏳ Sincronizando...';
+                    btnActualizar.style.cursor = 'wait';
+                    btnActualizar.style.opacity = '0.7';
+                    
+                    try {
+                        const response = await fetch('/api/inventario/refresh', {
+                            method: 'POST'
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            // Mostrar mensaje de éxito
+                            alert(`✅ SINCRONIZACIÓN EXITOSA\n\n${data.message}\n\n📦 ${data.total_articulos} artículos actualizados\n\nLa página se recargará automáticamente.`);
+                            
+                            // Recargar página
+                            location.reload();
+                        } else {
+                            alert(`❌ Error en sincronización:\n\n${data.detail || 'No se pudo completar'}`);
+                            btnActualizar.disabled = false;
+                            btnActualizar.innerHTML = textoOriginal;
+                            btnActualizar.style.cursor = 'pointer';
+                            btnActualizar.style.opacity = '1';
+                        }
+                    } catch (error) {
+                        console.error('Error en sincronización:', error);
+                        alert('❌ ERROR DE CONEXIÓN\n\nNo se pudo conectar con el servidor.\n\nVerifica que el backend esté corriendo.');
+                        btnActualizar.disabled = false;
+                        btnActualizar.innerHTML = textoOriginal;
+                        btnActualizar.style.cursor = 'pointer';
+                        btnActualizar.style.opacity = '1';
+                    }
+                });
+            }
+        });
+
         // ========= FUNCIONES PARA EVIDENCIAS =========
 
-        // Cargar evidencias de una placa desde SQLite
         async function cargarEvidencias(placa) {
+            const galeria = document.getElementById('evidenciasGaleria');
+            galeria.innerHTML = '<p style="color: #999; margin: 0;">⏳ Cargando evidencias...</p>';
+            
             try {
                 const response = await fetch(`/api/inventario/${placa}/evidencias`);
                 const data = await response.json();
                 
-                const galeria = document.getElementById('evidenciasGaleria');
                 galeria.innerHTML = '';
                 
                 if (data.evidencias && data.evidencias.length > 0) {
@@ -274,6 +323,7 @@
                         
                         imgContainer.innerHTML = `
                             <img src="${ev.url}" 
+                                 loading="lazy"
                                  style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid #ddd;"
                                  onclick="window.open('${ev.url}', '_blank')"
                                  title="Click para ver en tamaño completo - ${ev.filename}"
@@ -292,7 +342,6 @@
                         galeria.appendChild(imgContainer);
                     });
                     
-                    // Actualizar contador
                     const contador = document.createElement('div');
                     contador.style.cssText = 'width: 100%; text-align: center; color: #666; font-size: 12px; margin-top: 5px;';
                     contador.textContent = `Total: ${data.evidencias.length} imagen(es)`;
@@ -302,12 +351,10 @@
                 }
             } catch (error) {
                 console.error('Error cargando evidencias:', error);
-                const galeria = document.getElementById('evidenciasGaleria');
                 galeria.innerHTML = '<p style="color: #e74c3c; margin: 0;">❌ Error al cargar evidencias</p>';
             }
         }
 
-        // Mostrar mensaje de estado
         function mostrarEstado(mensaje, tipo = 'info') {
             const statusDiv = document.getElementById('evidenciaStatus');
             const colores = {
@@ -331,7 +378,6 @@
             }
         }
 
-        // Eliminar evidencia
         async function eliminarEvidencia(placa, filename) {
             if (!confirm('¿Estás seguro de eliminar esta evidencia?\n\nEsta acción no se puede deshacer.')) {
                 return;
@@ -357,7 +403,7 @@
             }
         }
 
-        // Inicializar eventos cuando cargue el DOM
+        // Inicializar eventos
         document.addEventListener('DOMContentLoaded', function() {
             
             // Evento: Subir evidencia
@@ -373,13 +419,11 @@
                         return;
                     }
                     
-                    // Validar tipo de archivo
                     if (!file.type.startsWith('image/')) {
                         mostrarEstado('⚠️ Solo se permiten archivos de imagen', 'warning');
                         return;
                     }
                     
-                    // Validar tamaño (máximo 5MB)
                     if (file.size > 5 * 1024 * 1024) {
                         mostrarEstado('⚠️ La imagen no debe superar 5MB', 'warning');
                         return;
@@ -415,7 +459,7 @@
                 });
             }
             
-            // Evento: Sincronizar con Google Sheets
+            // Evento: Sincronizar evidencias con Sheets
             const btnSincronizar = document.getElementById('btnSincronizarEvidencias');
             if (btnSincronizar) {
                 btnSincronizar.addEventListener('click', async function() {
@@ -446,20 +490,17 @@
                 });
             }
 
-            // ✅ EVENTO: GUARDAR CAMBIOS CON REFRESH
+            // Evento: Guardar cambios con refresh
             const btnGuardar = document.getElementById('btnGuardarCambios');
             if (btnGuardar) {
-                // Remover onclick del HTML
                 btnGuardar.removeAttribute('onclick');
                 
                 btnGuardar.addEventListener('click', async function() {
                     console.log('💾 Guardando cambios...');
                     
                     try {
-                        // Llamar a la función guardarCambios() de scripts.js
                         await guardarCambios();
                         
-                        // Esperar 1.5 segundos para que se vea el mensaje de éxito
                         setTimeout(() => {
                             console.log('🔄 Refrescando página completa...');
                             location.reload();
@@ -467,13 +508,11 @@
                         
                     } catch (error) {
                         console.error('❌ Error al guardar:', error);
-                        // No refrescar si hay error
                     }
                 });
             }
         });
 
-        // ⭐ IMPORTANTE: Exponer función para usar en otras partes del código
         window.cargarEvidencias = cargarEvidencias;
     </script>
 </body>

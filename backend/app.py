@@ -12,7 +12,14 @@ import logging
 import shutil
 import sqlite3
 from typing import List
+from threading import Lock
+import asyncio
 
+# ========= CONFIGURACIÓN OPTIMIZADA - CACHE INTELIGENTE =========
+CACHE_TTL = 3600  # 1 hora (ajustar según necesidad: 3600 = 1h, 7200 = 2h, etc.)
+_cache = None
+_cache_timestamp = None
+_cache_lock = Lock()  # Thread-safe para peticiones concurrentes
 
 # Configuración de logging
 logging.basicConfig(
@@ -21,13 +28,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 app = FastAPI(
     title="Sistema Inventario SENA",
-    version="3.0.2",
-    description="Sistema de gestión de inventario con Google Sheets y SQLite"
+    version="3.0.3-OPTIMIZADO-RAM",
+    description="Sistema de gestión de inventario OPTIMIZADO con Cache Inteligente en RAM"
 )
-
 
 # Configurar CORS
 app.add_middleware(
@@ -38,7 +43,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # Montar archivos estáticos del frontend
 try:
     app.mount("/static", StaticFiles(directory="../frontend"), name="static")
@@ -46,11 +50,9 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ No se pudieron montar archivos estáticos: {e}")
 
-
 # Carpeta local para evidencias e imágenes subidas
 EVIDENCIAS_DIR = os.path.join("uploaded_evidencias")
 os.makedirs(EVIDENCIAS_DIR, exist_ok=True)
-
 
 # Servir evidencias como archivos estáticos
 try:
@@ -59,20 +61,12 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ No se pudieron montar evidencias: {e}")
 
-
-# Cache global
-_cache = None
-_cache_timestamp = None
-
-
 # ========= CONFIGURACIÓN BASE DE DATOS SQLite =========
 DB_PATH = os.path.join(os.path.dirname(__file__), "inventario_evidencias.db")
-
 
 def init_database():
     """Inicializa la base de datos SQLite con la tabla de evidencias"""
     try:
-        # Asegurar que el directorio existe
         db_dir = os.path.dirname(DB_PATH)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
@@ -80,7 +74,6 @@ def init_database():
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Crear tabla para almacenar URLs de evidencias
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS evidencias_urls (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +85,6 @@ def init_database():
             )
         ''')
         
-        # Crear índice para búsquedas rápidas por placa
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_placa 
             ON evidencias_urls(placa)
@@ -102,13 +94,11 @@ def init_database():
         conn.close()
         logger.info(f"✅ Base de datos SQLite inicializada: {DB_PATH}")
         
-        # Verificar permisos
         if os.path.exists(DB_PATH):
             logger.info(f"✓ Archivo DB creado correctamente (tamaño: {os.path.getsize(DB_PATH)} bytes)")
     except Exception as e:
         logger.error(f"❌ Error inicializando base de datos: {e}")
         raise
-
 
 def guardar_url_evidencia(placa: str, url: str, filename: str):
     """Guarda la URL de una evidencia en la base de datos"""
@@ -116,7 +106,6 @@ def guardar_url_evidencia(placa: str, url: str, filename: str):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Verificar si ya existe
         cursor.execute('''
             SELECT id FROM evidencias_urls 
             WHERE placa = ? AND filename = ?
@@ -125,7 +114,6 @@ def guardar_url_evidencia(placa: str, url: str, filename: str):
         existe = cursor.fetchone()
         
         if existe:
-            # Actualizar URL existente
             cursor.execute('''
                 UPDATE evidencias_urls 
                 SET url = ?, fecha_subida = CURRENT_TIMESTAMP
@@ -133,7 +121,6 @@ def guardar_url_evidencia(placa: str, url: str, filename: str):
             ''', (url, placa, filename))
             logger.info(f"✓ URL actualizada en BD: {placa} -> {filename}")
         else:
-            # Insertar nueva URL
             cursor.execute('''
                 INSERT INTO evidencias_urls (placa, url, filename)
                 VALUES (?, ?, ?)
@@ -141,14 +128,11 @@ def guardar_url_evidencia(placa: str, url: str, filename: str):
             logger.info(f"✓ URL insertada en BD: {placa} -> {filename}")
         
         conn.commit()
-        
-        # Verificar que se guardó
         cursor.execute('''
             SELECT COUNT(*) FROM evidencias_urls 
             WHERE placa = ? AND filename = ?
         ''', (placa, filename))
         count = cursor.fetchone()[0]
-        
         conn.close()
         
         if count > 0:
@@ -166,7 +150,6 @@ def guardar_url_evidencia(placa: str, url: str, filename: str):
         import traceback
         logger.error(traceback.format_exc())
         return False
-
 
 def obtener_urls_evidencias(placa: str) -> List[dict]:
     """Obtiene todas las URLs de evidencias de una placa"""
@@ -197,7 +180,6 @@ def obtener_urls_evidencias(placa: str) -> List[dict]:
         logger.error(f"❌ Error obteniendo URLs de BD: {e}")
         return []
 
-
 def eliminar_url_evidencia(placa: str, filename: str):
     """Elimina una URL de evidencia de la base de datos"""
     try:
@@ -223,15 +205,12 @@ def eliminar_url_evidencia(placa: str, filename: str):
         logger.error(f"❌ Error eliminando URL de BD: {e}")
         return False
 
-
 # ========= FUNCIONES AUXILIARES =========
-
 
 def normaliza_texto(texto):
     if not texto:
         return ""
     return str(texto).strip().upper()
-
 
 def normaliza_placa(placa):
     if not placa:
@@ -239,7 +218,6 @@ def normaliza_placa(placa):
     placa_norm = str(placa).replace(" ", "").replace("-", "").replace("_", "")
     placa_norm = placa_norm.strip().lstrip("0").upper()
     return placa_norm if placa_norm else "0"
-
 
 def detectar_columna(headers, palabras_clave):
     headers_lower = [h.lower().strip() for h in headers]
@@ -249,8 +227,8 @@ def detectar_columna(headers, palabras_clave):
                 return idx
     return None
 
-
 def get_google_sheet_data():
+    """Función original de carga de Google Sheets (sin cambios)"""
     try:
         load_dotenv()
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
@@ -264,7 +242,7 @@ def get_google_sheet_data():
             logger.error(f"Archivo de credenciales no encontrado: {creds_path}")
             return [{"id": "ERROR", "placa": "ERROR", "nombre": "Credenciales no encontradas"}]
 
-        logger.info("Conectando a Google Sheets...")
+        logger.info("📥 Conectando a Google Sheets...")
 
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets.readonly",
@@ -275,7 +253,7 @@ def get_google_sheet_data():
         client = gspread.authorize(creds)
         sheet = client.open_by_key(sheet_id)
 
-        logger.info(f"Conectado exitosamente a: {sheet.title}")
+        logger.info(f"✅ Conectado exitosamente a: {sheet.title}")
 
         articles = []
         total_sheets = 0
@@ -401,7 +379,7 @@ def get_google_sheet_data():
                 logger.error(f"Error procesando hoja '{sheet_name}': {e}")
                 continue
 
-        logger.info(f"✓ Procesamiento completado: {total_rows_processed} artículos de {total_sheets} hojas")
+        logger.info(f"✅ Procesamiento completado: {total_rows_processed} artículos de {total_sheets} hojas")
 
         if not articles:
             return [{"id": "EMPTY", "placa": "EMPTY", "nombre": "No se encontraron artículos"}]
@@ -416,24 +394,55 @@ def get_google_sheet_data():
         logger.error(f"Error general: {type(e).__name__}: {e}")
         return [{"id": "ERROR", "placa": "ERROR", "nombre": f"Error: {str(e)}"}]
 
+# ========= NUEVA FUNCIÓN: CACHE INTELIGENTE =========
 
-# ========= EVENTOS DE INICIO =========
+def get_cached_data(force_refresh=False):
+    """
+    Obtiene datos con cache inteligente en RAM
+    
+    - force_refresh: Fuerza recarga desde Google Sheets
+    - Thread-safe con Lock
+    - Avisa cuando cache está expirado
+    """
+    global _cache, _cache_timestamp
+    
+    with _cache_lock:
+        # Si se fuerza refresh o no hay cache
+        if force_refresh or _cache is None or _cache_timestamp is None:
+            logger.info("📥 Cargando datos desde Google Sheets...")
+            _cache = get_google_sheet_data()
+            _cache_timestamp = datetime.now()
+            logger.info(f"✅ Cache actualizado: {len(_cache)} artículos")
+            return _cache
+        
+        # Verificar antigüedad del cache
+        elapsed = (datetime.now() - _cache_timestamp).total_seconds()
+        if elapsed > CACHE_TTL:
+            logger.warning(f"⚠️ Cache expirado ({int(elapsed)}s / {CACHE_TTL}s). Usar /api/inventario/refresh para actualizar")
+        
+        return _cache
 
+# ========= CARGA ASÍNCRONA INICIAL =========
+
+async def load_initial_cache():
+    """Carga inicial de cache en segundo plano"""
+    await asyncio.sleep(2)  # Dar tiempo a que el servidor inicie
+    logger.info("🔄 Cargando cache inicial en background...")
+    get_cached_data(force_refresh=True)
+
+# ========= EVENTOS DE INICIO - OPTIMIZADO =========
 
 @app.on_event("startup")
 async def startup_event():
-    global _cache, _cache_timestamp
-    logger.info("🚀 Iniciando aplicación Sistema Inventario SENA v3.0.2...")
-    
-    # Inicializar base de datos SQLite
+    logger.info("🚀 Iniciando Sistema Inventario SENA v3.0.3-OPTIMIZADO-RAM...")
     init_database()
     
-    _cache = get_google_sheet_data()
-    _cache_timestamp = datetime.now()
-    logger.info(f"✅ Cache inicial cargado: {len(_cache)} artículos")
-
+    # Cargar cache en background (no bloquea arranque)
+    asyncio.create_task(load_initial_cache())
+    logger.info("✅ Sistema listo - Cache cargándose en segundo plano")
 
 # ========= RUTA RAÍZ =========
+
 @app.get("/")
 async def root():
     """Ruta raíz - retorna el frontend"""
@@ -441,45 +450,35 @@ async def root():
         return FileResponse("../frontend/admin.html")
     except Exception:
         return {
-            "message": "Sistema Inventario SENA v3.0.2",
+            "message": "Sistema Inventario SENA v3.0.3-OPTIMIZADO-RAM",
             "status": "online",
             "timestamp": datetime.now().isoformat()
         }
 
-
 # ========= ENDPOINTS PARA EVIDENCIAS =========
-
 
 @app.post("/api/inventario/{placa}/evidencia")
 async def subir_evidencia(placa: str, file: UploadFile = File(...)):
-    """
-    Guarda una imagen de evidencia en disco local, en la base de datos SQLite
-    y devuelve la URL pública.
-    """
+    """Guarda una imagen de evidencia en disco local y BD SQLite"""
     safe_name = file.filename.replace(" ", "_")
     filename = f"{placa}_{safe_name}"
     save_path = os.path.join(EVIDENCIAS_DIR, filename)
 
     try:
-        # 1. Guardar archivo en disco
         with open(save_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
         logger.info(f"✓ Archivo guardado en disco: {save_path}")
         
-        # 2. Generar URL pública
         base_url = os.getenv("BASE_URL", "http://localhost:8000")
         public_url = f"{base_url}/evidencias/{filename}"
         
         logger.info(f"📍 URL generada: {public_url}")
         
-        # 3. Guardar URL en base de datos SQLite
         guardado = guardar_url_evidencia(placa, public_url, filename)
         
         if not guardado:
             logger.error("❌ FALLO AL GUARDAR EN BASE DE DATOS")
-            # Opcional: eliminar archivo si no se guardó en BD
-            # os.remove(save_path)
             raise HTTPException(
                 status_code=500, 
                 detail="Archivo guardado pero falló el registro en base de datos"
@@ -502,12 +501,9 @@ async def subir_evidencia(placa: str, file: UploadFile = File(...)):
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error al guardar la evidencia: {str(e)}")
 
-
 @app.get("/api/inventario/{placa}/evidencias")
 async def obtener_evidencias(placa: str):
-    """
-    Obtiene todas las URLs de evidencias almacenadas para una placa específica
-    """
+    """Obtiene todas las URLs de evidencias almacenadas para una placa"""
     try:
         urls = obtener_urls_evidencias(placa)
         
@@ -520,20 +516,15 @@ async def obtener_evidencias(placa: str):
         logger.error(f"Error obteniendo evidencias de {placa}: {e}")
         raise HTTPException(status_code=500, detail="Error al obtener evidencias")
 
-
 @app.delete("/api/inventario/{placa}/evidencia/{filename}")
 async def eliminar_evidencia(placa: str, filename: str):
-    """
-    Elimina una evidencia del disco y de la base de datos
-    """
+    """Elimina una evidencia del disco y de la base de datos"""
     try:
-        # Eliminar archivo del disco
         file_path = os.path.join(EVIDENCIAS_DIR, filename)
         if os.path.exists(file_path):
             os.remove(file_path)
             logger.info(f"✓ Archivo eliminado del disco: {filename}")
         
-        # Eliminar de la base de datos
         eliminar_url_evidencia(placa, filename)
         
         return {
@@ -545,23 +536,17 @@ async def eliminar_evidencia(placa: str, filename: str):
         logger.error(f"Error eliminando evidencia {filename}: {e}")
         raise HTTPException(status_code=500, detail="Error al eliminar evidencia")
 
-
 @app.put("/api/inventario/{placa}/sincronizar-evidencias")
 async def sincronizar_evidencias_google_sheets(placa: str):
-    """
-    Sincroniza las URLs de evidencias almacenadas en SQLite con Google Sheets
-    """
+    """Sincroniza las URLs de evidencias almacenadas en SQLite con Google Sheets"""
     try:
-        # Obtener URLs de la base de datos
         urls = obtener_urls_evidencias(placa)
         
         if not urls:
             raise HTTPException(404, "No hay evidencias para sincronizar")
         
-        # Concatenar todas las URLs separadas por coma
         urls_text = ", ".join([u["url"] for u in urls])
         
-        # Actualizar en Google Sheets
         load_dotenv()
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
@@ -599,10 +584,8 @@ async def sincronizar_evidencias_google_sheets(placa: str):
         if not encontrado:
             raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado en Google Sheets")
         
-        # Actualizar cache
-        global _cache, _cache_timestamp
-        _cache = get_google_sheet_data()
-        _cache_timestamp = datetime.now()
+        # ✅ USAR CACHE OPTIMIZADO
+        get_cached_data(force_refresh=True)
         
         return {
             "message": "Evidencias sincronizadas con Google Sheets",
@@ -617,26 +600,21 @@ async def sincronizar_evidencias_google_sheets(placa: str):
         logger.error(f"Error sincronizando evidencias: {e}")
         raise HTTPException(status_code=500, detail=f"Error en sincronización: {str(e)}")
 
-
-# ========= ENDPOINT DEBUG (ELIMINAR EN PRODUCCIÓN) =========
-
+# ========= ENDPOINT DEBUG =========
 
 @app.get("/api/debug/evidencias")
 async def debug_evidencias():
-    """Endpoint de depuración - eliminar en producción"""
+    """Endpoint de depuración"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Verificar que la tabla existe
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
         
-        # Contar registros
         cursor.execute("SELECT COUNT(*) FROM evidencias_urls")
         total = cursor.fetchone()[0]
         
-        # Obtener todos los registros
         cursor.execute("SELECT * FROM evidencias_urls ORDER BY fecha_subida DESC LIMIT 10")
         registros = cursor.fetchall()
         
@@ -657,15 +635,14 @@ async def debug_evidencias():
             "db_exists": os.path.exists(DB_PATH)
         }
 
-
-# ========= ENDPOINTS CRUD =========
-
+# ========= ENDPOINTS CRUD - OPTIMIZADOS =========
 
 @app.post("/api/inventario/crear")
 async def crear_articulo(articulo: dict = Body(...)):
     responsable = articulo.get("responsable") or articulo.get("Origen")
     if not responsable:
         raise HTTPException(400, "Falta campo 'responsable' o 'Origen'.")
+    
     load_dotenv()
     sheet_id = os.getenv("GOOGLE_SHEET_ID")
     creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
@@ -673,10 +650,12 @@ async def crear_articulo(articulo: dict = Body(...)):
     creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
     client = gspread.authorize(creds)
     sheet = client.open_by_key(sheet_id)
+    
     try:
         ws = sheet.worksheet(responsable)
     except Exception:
         ws = sheet.add_worksheet(title=responsable, rows="1000", cols="20")
+    
     row = [
         articulo.get("Centro", ""),
         articulo.get("Modelo", ""),
@@ -691,18 +670,14 @@ async def crear_articulo(articulo: dict = Body(...)):
         articulo.get("Origen", responsable)
     ]
     ws.append_row(row)
-    global _cache, _cache_timestamp
-    _cache = get_google_sheet_data()
-    _cache_timestamp = datetime.now()
+    
+    # ✅ USAR CACHE OPTIMIZADO
+    get_cached_data(force_refresh=True)
     return {"message": "Artículo creado correctamente"}
-
 
 @app.put("/api/inventario/{placa}/editar")
 async def editar_articulo(placa: str, datos_actualizados: dict = Body(...)):
-    """
-    Actualiza SOLO las columnas indicadas en datos_actualizados,
-    manteniendo el resto de la fila intacto y sin cambiar el orden.
-    """
+    """Actualiza SOLO las columnas indicadas en datos_actualizados"""
     load_dotenv()
     sheet_id = os.getenv("GOOGLE_SHEET_ID")
     creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
@@ -758,11 +733,9 @@ async def editar_articulo(placa: str, datos_actualizados: dict = Body(...)):
     if not encontrado:
         raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado")
 
-    global _cache, _cache_timestamp
-    _cache = get_google_sheet_data()
-    _cache_timestamp = datetime.now()
+    # ✅ USAR CACHE OPTIMIZADO
+    get_cached_data(force_refresh=True)
     return {"message": "Artículo editado correctamente"}
-
 
 @app.delete("/api/inventario/{placa}/eliminar")
 async def eliminar_articulo(placa: str):
@@ -773,6 +746,7 @@ async def eliminar_articulo(placa: str):
     creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
     client = gspread.authorize(creds)
     sheet = client.open_by_key(sheet_id)
+    
     encontrado = False
     for ws in sheet.worksheets():
         rows = ws.get_all_values()
@@ -791,38 +765,42 @@ async def eliminar_articulo(placa: str):
                 break
         if encontrado:
             break
+    
     if not encontrado:
         raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado")
-    global _cache, _cache_timestamp
-    _cache = get_google_sheet_data()
-    _cache_timestamp = datetime.now()
+    
+    # ✅ USAR CACHE OPTIMIZADO
+    get_cached_data(force_refresh=True)
     return {"message": f"Artículo con placa {placa} eliminado correctamente"}
 
-
-# ========= ENDPOINTS GET QUE USA EL FRONT =========
-
+# ========= ENDPOINTS GET - OPTIMIZADOS CON CACHE =========
 
 @app.get("/api/health")
 async def health_check():
     global _cache, _cache_timestamp
+    
+    cache_age = None
+    if _cache_timestamp:
+        cache_age = int((datetime.now() - _cache_timestamp).total_seconds())
+    
     return {
         "status": "healthy",
-        "version": "3.0.2",
+        "version": "3.0.3-OPTIMIZADO-RAM",
         "cache_size": len(_cache) if _cache else 0,
         "cache_timestamp": _cache_timestamp.isoformat() if _cache_timestamp else None,
+        "cache_age_seconds": cache_age,
+        "cache_ttl_seconds": CACHE_TTL,
+        "cache_expired": cache_age > CACHE_TTL if cache_age else False,
         "timestamp": datetime.now().isoformat(),
         "db_path": DB_PATH,
         "db_exists": os.path.exists(DB_PATH)
     }
 
-
 @app.get("/api/articulos")
 async def api_articulos():
-    global _cache
-    if _cache is None:
-        _cache = get_google_sheet_data()
-    return {"articulos": _cache, "total": len(_cache)}
-
+    # ✅ USAR CACHE OPTIMIZADO
+    articulos = get_cached_data()
+    return {"articulos": articulos, "total": len(articulos)}
 
 @app.get("/api/inventario/consulta")
 async def consulta_inventario(
@@ -835,9 +813,8 @@ async def consulta_inventario(
     fecha_fin: str = None,
     exportar_todo: bool = Query(False)
 ):
-    global _cache
-    if _cache is None:
-        _cache = get_google_sheet_data()
+    # ✅ USAR CACHE OPTIMIZADO
+    articulos = get_cached_data()
 
     placa_norm = placa.upper() if placa else None
     consecutivo_norm = consecutivo.upper() if consecutivo else None
@@ -869,7 +846,7 @@ async def consulta_inventario(
             return False
         return True
 
-    articulos_filtrados = list(filter(filtro, _cache))
+    articulos_filtrados = list(filter(filtro, articulos))
     total = len(articulos_filtrados)
 
     if exportar_todo:
@@ -891,10 +868,10 @@ async def consulta_inventario(
         "total_pages": (total + limit - 1) // limit,
     }
 
-
 @app.get("/api/inventario/categorias")
 async def get_categorias():
-    articulos = get_google_sheet_data()
+    # ✅ USAR CACHE OPTIMIZADO
+    articulos = get_cached_data()
     categorias = sorted(set(
         art.get("categoria", "")
         for art in articulos
@@ -902,10 +879,10 @@ async def get_categorias():
     ))
     return categorias
 
-
 @app.get("/api/inventario/responsables")
 async def get_responsables():
-    articulos = get_google_sheet_data()
+    # ✅ USAR CACHE OPTIMIZADO
+    articulos = get_cached_data()
     responsables = sorted(set(
         art.get("responsable", "")
         for art in articulos
@@ -913,10 +890,10 @@ async def get_responsables():
     ))
     return responsables
 
-
 @app.get("/api/inventario/estadisticas")
 async def get_estadisticas():
-    articulos = get_google_sheet_data()
+    # ✅ USAR CACHE OPTIMIZADO
+    articulos = get_cached_data()
     articulos_validos = [a for a in articulos if a.get("placa") not in ["ERROR", "EMPTY"]]
     return {
         "total_articulos": len(articulos_validos),
@@ -926,10 +903,10 @@ async def get_estadisticas():
         "responsables_unicos": len(set(art.get("responsable", "") for art in articulos_validos if art.get("responsable")))
     }
 
-
 @app.get("/api/inventario/{placa}/detalle")
 async def detalle_articulo(placa: str):
-    articulos = get_google_sheet_data()
+    # ✅ USAR CACHE OPTIMIZADO
+    articulos = get_cached_data()
     placa_norm = normaliza_placa(placa)
     logger.info(f"Buscando detalle para placa: '{placa}' (normalizada: '{placa_norm}')")
 
@@ -947,20 +924,19 @@ async def detalle_articulo(placa: str):
     logger.warning(f"✗ Placa no encontrada: '{placa}'")
     raise HTTPException(404, f"Artículo con placa '{placa}' no encontrado")
 
-
 @app.post("/api/inventario/refresh")
 async def refresh_cache():
-    global _cache, _cache_timestamp
-    logger.info("Refrescando cache manualmente...")
-    _cache = get_google_sheet_data()
-    _cache_timestamp = datetime.now()
+    """ENDPOINT PARA REFRESCAR CACHE MANUALMENTE"""
+    logger.info("🔄 Refrescando cache manualmente...")
+    articulos = get_cached_data(force_refresh=True)
+    
+    global _cache_timestamp
     return {
-        "message": "Cache actualizado exitosamente",
-        "total_articulos": len(_cache),
+        "message": "✅ Cache actualizado exitosamente",
+        "total_articulos": len(articulos),
         "timestamp": _cache_timestamp.isoformat()
     }
 
-
-if __name__ == "_main_":
+if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
