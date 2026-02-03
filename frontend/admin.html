@@ -244,7 +244,8 @@
             </div>
 
             <div class="modal-footer" id="modalFooter">
-                <button id="btnGuardarCambios" class="btn btn-primary btn-main" onclick="guardarCambios()">
+                <!-- ✅ BOTÓN SIN onclick - se maneja con addEventListener -->
+                <button id="btnGuardarCambios" class="btn btn-primary btn-main">
                     Guardar cambios
                 </button>
             </div>
@@ -441,6 +442,32 @@
                         mostrarEstado('❌ Error de conexión al sincronizar', 'error');
                     } finally {
                         btnSincronizar.disabled = false;
+                    }
+                });
+            }
+
+            // ✅ EVENTO: GUARDAR CAMBIOS CON REFRESH
+            const btnGuardar = document.getElementById('btnGuardarCambios');
+            if (btnGuardar) {
+                // Remover onclick del HTML
+                btnGuardar.removeAttribute('onclick');
+                
+                btnGuardar.addEventListener('click', async function() {
+                    console.log('💾 Guardando cambios...');
+                    
+                    try {
+                        // Llamar a la función guardarCambios() de scripts.js
+                        await guardarCambios();
+                        
+                        // Esperar 1.5 segundos para que se vea el mensaje de éxito
+                        setTimeout(() => {
+                            console.log('🔄 Refrescando página completa...');
+                            location.reload();
+                        }, 1500);
+                        
+                    } catch (error) {
+                        console.error('❌ Error al guardar:', error);
+                        // No refrescar si hay error
                     }
                 });
             }
