@@ -455,6 +455,15 @@ async def root():
             "timestamp": datetime.now().isoformat()
         }
 
+# Ruta explícita para servir el panel de administración
+@app.get("/admin.html")
+async def admin_html():
+    try:
+        return FileResponse("../frontend/admin.html")
+    except Exception as e:
+        logger.error(f"No se pudo servir admin.html: {e}")
+        raise HTTPException(status_code=404, detail="admin.html no encontrado")
+
 # ========= ENDPOINTS PARA EVIDENCIAS =========
 
 @app.post("/api/inventario/{placa}/evidencia")
